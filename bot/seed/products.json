@@ -1,0 +1,93 @@
+[
+  {
+    "product_id": "tensor",
+    "product_name": "Tensor",
+    "service_token_hash": "TODO - Requires business confirmation: Tensor internal service token hash",
+    "is_active": true,
+    "branding_config": {
+      "primaryColor": "#2563EB",
+      "accentColor": "#14B8A6",
+      "widgetTitle": "Tensor Assistant",
+      "welcomeMessage": "Ask Tensor Assistant about analytics, models, and reports.",
+      "logoUrl": "TODO - Requires business confirmation: Tensor logo URL"
+    }
+  },
+  {
+    "product_id": "admissions",
+  "product_name": "Admissions Portal",
+  "service_token_hash": "TODO - Requires business confirmation: Admissions Portal internal service token hash",
+  "is_active": true,
+  "branding_config": {
+    "primaryColor": "#0F766E",
+    "accentColor": "#F59E0B",
+    "widgetTitle": "Admissions Help Desk",
+    "welcomeMessage": "Welcome! I can help you with admissions, eligibility criteria, application status, required documents, scholarships, and important deadlines.",
+    "logoUrl": "TODO - Requires business confirmation: Admissions Portal logo URL"
+    }
+  },
+  {
+    "product_id": "internal-support",
+    "product_name": "Internal Support",
+    "service_token_hash": "TODO - Requires business confirmation: Internal Support internal service token hash",
+    "is_active": true,
+    "branding_config": {
+      "primaryColor": "#334155",
+      "accentColor": "#22C55E",
+      "widgetTitle": "Support Assistant",
+      "welcomeMessage": "Ask about IT help, access requests, devices, and workplace support.",
+      "logoUrl": "TODO - Requires business confirmation: Internal Support logo URL"
+    }
+  },
+  {
+    "product_id": "hr-portal",
+    "product_name": "HR Portal",
+    "service_token_hash": "TODO - Requires business confirmation: HR Portal internal service token hash",
+    "is_active": true,
+    "branding_config": {
+      "primaryColor": "#7C3AED",
+      "accentColor": "#F59E0B",
+      "widgetTitle": "HR Assistant",
+      "welcomeMessage": "Ask about policies, leave, benefits, and onboarding.",
+      "logoUrl": "TODO - Requires business confirmation: HR Portal logo URL"
+    }
+  },
+  {
+    "product_id": "placement-cell",
+    "product_name": "Placement Cell",
+    "service_token_hash": "TODO - Requires business confirmation: Placement Cell internal service token hash",
+    "is_active": true,
+    "branding_config": {
+      "primaryColor": "#0369A1",
+      "accentColor": "#DC2626",
+      "widgetTitle": "Placement Assistant",
+      "welcomeMessage": "Ask about placement drives, eligibility, interview schedules, and offers.",
+      "logoUrl": "TODO - Requires business confirmation: Placement Cell logo URL"
+    }
+  },
+  {
+    "product_id": "website-analyzer",
+    "product_name": "Website Analyzer",
+    "service_token_hash": "TODO - Requires business confirmation: Website Analyzer internal service token hash",
+    "is_active": true,
+    "branding_config": {
+      "primaryColor": "#0E7490",
+      "accentColor": "#84CC16",
+      "widgetTitle": "Website Analyzer Assistant",
+      "welcomeMessage": "Ask about SEO audits, crawl reports, page insights, and optimization recommendations.",
+      "logoUrl": "TODO - Requires business confirmation: Website Analyzer logo URL"
+    }
+  },
+  {
+    "product_id": "knowledge-base",
+    "product_name": "Knowledge Base",
+    "service_token_hash": "TODO - Requires business confirmation: Knowledge Base internal service token hash",
+    "is_active": true,
+    "branding_config": {
+      "primaryColor": "#1D4ED8",
+      "accentColor": "#059669",
+      "widgetTitle": "Knowledge Assistant",
+      "welcomeMessage": "Search enterprise knowledge, operating procedures, and internal guides.",
+      "logoUrl": "TODO - Requires business confirmation: Knowledge Base logo URL"
+    }
+  }
+]
