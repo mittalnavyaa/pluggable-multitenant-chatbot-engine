@@ -1,0 +1,184 @@
+[
+  {
+    "document_id": "doc_tensor_reporting_guide",
+    "product_id": "tensor",
+    "title": "Tensor Reporting Guide",
+    "source": "tensor/guides/reporting-guide.md",
+    "language": "en",
+    "document_type": "guide",
+    "content_summary": "Instructions for creating dashboards, quarterly reports, and business unit summaries.",
+    "metadata": {
+      "owner": "Analytics Platform",
+      "classification": "internal"
+    }
+  },
+  {
+    "document_id": "doc_tensor_model_review",
+    "product_id": "tensor",
+    "title": "Forecasting Model Review Procedure",
+    "source": "tensor/procedures/model-review.md",
+    "language": "en",
+    "document_type": "procedure",
+    "content_summary": "Review checklist and approval process for forecasting models before production use.",
+    "metadata": {
+      "owner": "Data Science Governance",
+      "classification": "confidential"
+    }
+  },
+  {
+    "document_id": "doc_admissions_fee_policy",
+    "product_id": "admissions",
+    "title": "Admissions Fee Policy",
+    "source": "admissions/policies/fees.md",
+    "language": "en",
+    "document_type": "policy",
+    "content_summary": "Application fee rules, waiver eligibility, refund windows, and payment support contacts.",
+    "metadata": {
+      "owner": "Admissions Operations",
+      "classification": "internal"
+    }
+  },
+  {
+    "document_id": "doc_admissions_application_timeline",
+    "product_id": "admissions",
+    "title": "Application Timeline Guide",
+    "source": "admissions/guides/application-timeline.md",
+    "language": "en",
+    "document_type": "guide",
+    "content_summary": "Admissions cycle milestones, document submission deadlines, and review stages.",
+    "metadata": {
+      "owner": "Admissions Operations",
+      "classification": "internal"
+    }
+  },
+  {
+    "document_id": "doc_support_device_request",
+    "product_id": "internal-support",
+    "title": "Device Request Procedure",
+    "source": "internal-support/procedures/device-request.md",
+    "language": "en",
+    "document_type": "procedure",
+    "content_summary": "Steps for requesting laptops, monitors, accessories, and replacement devices.",
+    "metadata": {
+      "owner": "IT Service Desk",
+      "classification": "internal"
+    }
+  },
+  {
+    "document_id": "doc_support_access_management",
+    "product_id": "internal-support",
+    "title": "Access Management FAQ",
+    "source": "internal-support/faqs/access-management.md",
+    "language": "en",
+    "document_type": "faq",
+    "content_summary": "Frequently asked questions about application access, approvals, and account recovery.",
+    "metadata": {
+      "owner": "Identity and Access Management",
+      "classification": "internal"
+    }
+  },
+  {
+    "document_id": "doc_hr_leave_policy",
+    "product_id": "hr-portal",
+    "title": "Leave and Attendance Policy",
+    "source": "hr-portal/policies/leave-and-attendance.md",
+    "language": "en",
+    "document_type": "policy",
+    "content_summary": "Annual leave, casual leave, sick leave, attendance regularization, and manager approval rules.",
+    "metadata": {
+      "owner": "People Operations",
+      "classification": "internal"
+    }
+  },
+  {
+    "document_id": "doc_hr_onboarding_guide",
+    "product_id": "hr-portal",
+    "title": "Employee Onboarding Guide",
+    "source": "hr-portal/guides/onboarding.md",
+    "language": "en",
+    "document_type": "guide",
+    "content_summary": "New employee onboarding tasks, required documents, benefits enrollment, and orientation schedule.",
+    "metadata": {
+      "owner": "People Operations",
+      "classification": "internal"
+    }
+  },
+  {
+    "document_id": "doc_placement_interview_process",
+    "product_id": "placement-cell",
+    "title": "Interview Process Guide",
+    "source": "placement-cell/process/interview-process.md",
+    "language": "en",
+    "document_type": "guide",
+    "content_summary": "Placement interview stages, scheduling, panel coordination, and feedback submission.",
+    "metadata": {
+      "owner": "Career Services",
+      "classification": "internal"
+    }
+  },
+  {
+    "document_id": "doc_placement_offer_policy",
+    "product_id": "placement-cell",
+    "title": "Offer Acceptance Policy",
+    "source": "placement-cell/policies/offer-acceptance.md",
+    "language": "en",
+    "document_type": "policy",
+    "content_summary": "Offer acceptance timelines, student confirmation requirements, and withdrawal rules.",
+    "metadata": {
+      "owner": "Career Services",
+      "classification": "internal"
+    }
+  },
+  {
+    "document_id": "doc_website_analyzer_seo_audit",
+    "product_id": "website-analyzer",
+    "title": "SEO Audit Interpretation Guide",
+    "source": "website-analyzer/guides/seo-audit-interpretation.md",
+    "language": "en",
+    "document_type": "guide",
+    "content_summary": "Explains crawl health, metadata findings, structured data checks, performance signals, and recommended remediation priorities.",
+    "metadata": {
+      "owner": "Growth Engineering",
+      "classification": "internal"
+    }
+  },
+  {
+    "document_id": "doc_website_analyzer_crawl_policy",
+    "product_id": "website-analyzer",
+    "title": "Website Crawl Policy",
+    "source": "website-analyzer/policies/crawl-policy.md",
+    "language": "en",
+    "document_type": "policy",
+    "content_summary": "Defines crawl limits, allowed domains, robots handling, retry behavior, and data retention for website analysis jobs.",
+    "metadata": {
+      "owner": "Search Platform",
+      "classification": "internal"
+    }
+  },
+  {
+    "document_id": "doc_kb_incident_management",
+    "product_id": "knowledge-base",
+    "title": "Incident Management Runbook",
+    "source": "knowledge-base/runbooks/incident-management.md",
+    "language": "en",
+    "document_type": "runbook",
+    "content_summary": "Severity definitions, escalation paths, communication templates, and post-incident review steps.",
+    "metadata": {
+      "owner": "Platform Reliability",
+      "classification": "internal"
+    }
+  },
+  {
+    "document_id": "doc_kb_change_management",
+    "product_id": "knowledge-base",
+    "title": "Change Management Standard",
+    "source": "knowledge-base/standards/change-management.md",
+    "language": "en",
+    "document_type": "standard",
+    "content_summary": "Change approval requirements, release windows, rollback planning, and audit evidence.",
+    "metadata": {
+      "owner": "Engineering Operations",
+      "classification": "internal"
+    }
+  }
+]

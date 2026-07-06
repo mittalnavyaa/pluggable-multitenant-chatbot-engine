@@ -1,0 +1,65 @@
+{
+  "tensor": {
+    "primaryColor": "#2563EB",
+    "accentColor": "#14B8A6",
+    "surfaceColor": "#FFFFFF",
+    "textColor": "#111827",
+    "widgetTitle": "Tensor Assistant",
+    "launcherLabel": "Ask Tensor",
+    "welcomeMessage": "Ask Tensor Assistant about analytics, models, and reports."
+  },
+  "admissions": {
+    "primaryColor": "#0F766E",
+    "accentColor": "#F97316",
+    "surfaceColor": "#FFFFFF",
+    "textColor": "#111827",
+    "widgetTitle": "Admissions Assistant",
+    "launcherLabel": "Ask Admissions",
+    "welcomeMessage": "Ask about applications, eligibility, deadlines, and fee policies."
+  },
+  "internal-support": {
+    "primaryColor": "#334155",
+    "accentColor": "#22C55E",
+    "surfaceColor": "#FFFFFF",
+    "textColor": "#111827",
+    "widgetTitle": "Support Assistant",
+    "launcherLabel": "Get Support",
+    "welcomeMessage": "Ask about IT help, access requests, devices, and workplace support."
+  },
+  "hr-portal": {
+    "primaryColor": "#7C3AED",
+    "accentColor": "#F59E0B",
+    "surfaceColor": "#FFFFFF",
+    "textColor": "#111827",
+    "widgetTitle": "HR Assistant",
+    "launcherLabel": "Ask HR",
+    "welcomeMessage": "Ask about policies, leave, benefits, and onboarding."
+  },
+  "placement-cell": {
+    "primaryColor": "#0369A1",
+    "accentColor": "#DC2626",
+    "surfaceColor": "#FFFFFF",
+    "textColor": "#111827",
+    "widgetTitle": "Placement Assistant",
+    "launcherLabel": "Ask Placement",
+    "welcomeMessage": "Ask about placement drives, eligibility, interview schedules, and offers."
+  },
+  "website-analyzer": {
+    "primaryColor": "#0E7490",
+    "accentColor": "#84CC16",
+    "surfaceColor": "#FFFFFF",
+    "textColor": "#111827",
+    "widgetTitle": "Website Analyzer Assistant",
+    "launcherLabel": "Analyze Website",
+    "welcomeMessage": "Ask about SEO audits, crawl reports, page insights, and optimization recommendations."
+  },
+  "knowledge-base": {
+    "primaryColor": "#1D4ED8",
+    "accentColor": "#059669",
+    "surfaceColor": "#FFFFFF",
+    "textColor": "#111827",
+    "widgetTitle": "Knowledge Assistant",
+    "launcherLabel": "Search Knowledge",
+    "welcomeMessage": "Search enterprise knowledge, operating procedures, and internal guides."
+  }
+}
