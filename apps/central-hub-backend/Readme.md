@@ -18,6 +18,14 @@ Dashboard:
 
 http://localhost:6333/dashboard
 
+## Celery
+
+celery -A src.celery_app:celery_app worker --loglevel=info -P solo
+
+## Redis
+
+docker exec -it chatbot-redis redis-cli
+
 ## Start Backend
 
 uvicorn src.main:app --reload

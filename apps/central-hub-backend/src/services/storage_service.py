@@ -14,8 +14,8 @@ BUCKET_NAME = "documents"
 def initialize_bucket():
     if not client.bucket_exists(BUCKET_NAME):
         client.make_bucket(BUCKET_NAME)
-def upload_file(file):
-    object_name = f"{uuid4()}_{file.filename}"
+def upload_file(file, bot_id: str):
+    object_name = f"bot_{bot_id}/{uuid4()}_{file.filename}"
 
     client.put_object(
         bucket_name=BUCKET_NAME,
