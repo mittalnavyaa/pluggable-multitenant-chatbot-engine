@@ -10,6 +10,31 @@ const icons = {
       <rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor" opacity=".9"/>
     </svg>
   ),
+  'Overview Dashboard': (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M2 10l4-4 3 3 5-6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <rect x="1" y="1" width="14" height="14" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+    </svg>
+  ),
+  'Bot Control Factory': (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="2" y="5" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M5 5V3.5a3 3 0 0 1 6 0V5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      <circle cx="6" cy="9" r="1" fill="currentColor"/>
+      <circle cx="10" cy="9" r="1" fill="currentColor"/>
+    </svg>
+  ),
+  'Ingestion Status Queues': (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M8 2v4l2.5 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5"/>
+    </svg>
+  ),
+  'Sales Conversions': (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M2 12l3.5-4 3 2.5L12 5l2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
   Products: (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <path d="M2 4h12M2 8h12M2 12h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -51,6 +76,10 @@ const icons = {
 
 const navItems = [
   { label: 'Dashboard', path: '/' },
+  { label: 'Overview Dashboard', path: '/admin' },
+  { label: 'Bot Control Factory', path: '/admin#bots' },
+  { label: 'Ingestion Status Queues', path: '/documents' },
+  { label: 'Sales Conversions', path: '/admin#sales' },
   { label: 'Products', path: '/products' },
   { label: 'Branding', path: '/branding' },
   { label: 'Uploads', path: '/uploads' },

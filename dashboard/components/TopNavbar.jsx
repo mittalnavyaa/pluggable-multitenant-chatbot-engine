@@ -1,9 +1,11 @@
 import { useNavigate } from 'react-router-dom';
 import { logout } from '../src/auth/authService';
 import { SearchBar } from './SearchBar.jsx';
+import { useTheme } from '../src/ThemeContext.jsx';
 
 export function TopNavbar({ activePage, onMenuClick }) {
   const navigate = useNavigate();
+  const { dark, toggle } = useTheme();
 
   function handleLogout() {
     logout();
@@ -31,6 +33,29 @@ export function TopNavbar({ activePage, onMenuClick }) {
       </div>
       <div className="top-navbar__actions">
         <SearchBar placeholder="Search products, documents, or settings" hideLabel />
+
+        {/* ── Theme toggle ── */}
+        <button
+          className="top-navbar__icon-btn"
+          type="button"
+          onClick={toggle}
+          aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={dark ? 'Light mode' : 'Dark mode'}
+        >
+          {dark ? (
+            /* Sun icon */
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+              <circle cx="9" cy="9" r="3.5" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M9 1v2M9 15v2M1 9h2M15 9h2M3.22 3.22l1.42 1.42M13.36 13.36l1.42 1.42M3.22 14.78l1.42-1.42M13.36 4.64l1.42-1.42" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          ) : (
+            /* Moon icon */
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+              <path d="M15.5 11A7 7 0 0 1 7 2.5a7 7 0 1 0 8.5 8.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          )}
+        </button>
+
         <button className="top-navbar__icon-btn" type="button" aria-label="Notifications">
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
             <path d="M9 2a5 5 0 0 1 5 5v3l1.5 2H2.5L4 10V7a5 5 0 0 1 5-5Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>

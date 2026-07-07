@@ -43,7 +43,11 @@ export function Uploads() {
             <h2>Selected Files</h2>
             <p>Files are validated locally before upload submission.</p>
           </div>
-          <UploadButton label="Upload All Valid Files" onClick={startAllUploads} disabled={files.length === 0} />
+          <UploadButton
+            label="Upload All Valid Files"
+            onClick={startAllUploads}
+            disabled={files.filter((f) => ['selected', 'failed'].includes(f.status) && f.validationErrors.length === 0).length === 0}
+          />
         </div>
         <UploadList
           files={files}

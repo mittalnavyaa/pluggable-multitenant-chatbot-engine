@@ -42,7 +42,7 @@ export function PipelineTracker({ job, loading }: PipelineTrackerProps) {
       <div className="pipeline-logs">
         <h3>Processing Logs</h3>
         <ul>
-          {job.logs.map((log) => <li key={log}>{log}</li>)}
+          {job.logs.map((log, i) => <li key={i}>{log}</li>)}
         </ul>
       </div>
     </section>

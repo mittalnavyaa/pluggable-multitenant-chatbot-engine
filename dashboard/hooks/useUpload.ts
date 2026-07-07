@@ -67,10 +67,15 @@ export function useUpload() {
   }, [startUpload]);
 
   const startAllUploads = useCallback(() => {
+    // Read current files snapshot outside the state updater (pure read)
     setFiles((currentFiles) => {
-      currentFiles
-        .filter((file) => ['selected', 'failed'].includes(file.status) && file.validationErrors.length === 0)
-        .forEach((file) => startUpload(file.id));
+      const toUpload = currentFiles.filter(
+        (file) => ['selected', 'failed'].includes(file.status) && file.validationErrors.length === 0
+      );
+      // Schedule uploads after this render cycle — never call async inside updater
+      setTimeout(() => {
+        toUpload.forEach((file) => startUpload(file.id));
+      }, 0);
       return currentFiles;
     });
   }, [startUpload]);
