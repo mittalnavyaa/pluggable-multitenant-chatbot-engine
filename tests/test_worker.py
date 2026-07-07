@@ -26,8 +26,11 @@ if "src" in sys.modules:
 
 # pyrefly: ignore [missing-import]
 from src.database.database import SessionLocal
+# pyrefly: ignore [missing-import]
 from src.models.document_registry import DocumentRegistry
+# pyrefly: ignore [missing-import]
 from src.services.storage_service import upload_file
+# pyrefly: ignore [missing-import]
 from src.celery_app import process_document
 
 class MockUploadFile:
