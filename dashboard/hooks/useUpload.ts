@@ -35,7 +35,7 @@ export function useUpload() {
     setActiveFileId((current) => (current === fileId ? undefined : current));
   }, []);
 
-  const startUpload = useCallback(async (fileId: string) => {
+  const startUpload = useCallback(async (fileId: string, botId?: string) => {
     let targetFile: UploadFile | undefined;
     setFiles((currentFiles) => {
       targetFile = currentFiles.find((file) => file.id === fileId);
@@ -48,7 +48,7 @@ export function useUpload() {
     const fileSnapshot = targetFile;
 
     try {
-      const response = await uploadFile(fileSnapshot);
+      const response = await uploadFile(fileSnapshot, botId);
       setFiles((currentFiles) => currentFiles.map((file) => (
         file.id === fileId
           ? { ...file, status: 'processing', jobId: response.job_id }
@@ -62,15 +62,15 @@ export function useUpload() {
     }
   }, []);
 
-  const retryUpload = useCallback((fileId: string) => {
-    startUpload(fileId);
+  const retryUpload = useCallback((fileId: string, botId?: string) => {
+    startUpload(fileId, botId);
   }, [startUpload]);
 
-  const startAllUploads = useCallback(() => {
+  const startAllUploads = useCallback((botId?: string) => {
     setFiles((currentFiles) => {
       currentFiles
         .filter((file) => ['selected', 'failed'].includes(file.status) && file.validationErrors.length === 0)
-        .forEach((file) => startUpload(file.id));
+        .forEach((file) => startUpload(file.id, botId));
       return currentFiles;
     });
   }, [startUpload]);

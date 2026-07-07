@@ -9,7 +9,7 @@ export function isTerminalPipelineStatus(status: PipelineStatus): boolean {
 }
 
 export async function getPipelineStatus(jobId: string): Promise<PipelineResponse> {
-  const url = `${API_BASE_URL}/${jobId}`;
+  const url = `/api/v1/documents/${jobId}/status`;
   console.log('[pipelineService] GET', url);
 
   const response = await fetch(url);
@@ -27,5 +27,5 @@ export async function getPipelineStatus(jobId: string): Promise<PipelineResponse
 }
 
 export function getOutputDownloadUrl(jobId: string): string {
-  return `${API_BASE_URL}/${jobId}/download`;
+  return `/api/v1/documents/${jobId}/status`;
 }
