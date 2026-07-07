@@ -111,12 +111,3 @@ RAG Ingestion / Retrieval Engine
 ```
 
 ---
-
-## Implementation Roadmap
-
-To implement the service mesh middleware, update the files in this order:
-
-1. **`apps/central-hub-backend/src/middleware/auth.py`**
-   * **Purpose**: Implement the token validation logic.
-   * **Modifications**: Extract `X-Internal-Service-Token`, hash it, lookup PostgreSQL, verify product is active, and register product context in request state. Return `401` on missing/invalid tokens, and `403` if inactive.
-   * **Dependencies**: `src/database/database.py` (for DB sessions) and `src/models/internal_product.py` (for database lookup).
