@@ -104,3 +104,20 @@ docker-data/
 # Local Configuration
 # =========================
 .local/
+
+# =========================
+# Node / Frontend
+# =========================
+node_modules/
+dist/
+dist-ssr/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# =========================
+# Pipeline temp output files
+# =========================
+bot/document-processing/output/tmp*.md
+bot/document-processing/output/tmp*

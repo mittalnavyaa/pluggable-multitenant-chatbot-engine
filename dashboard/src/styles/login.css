@@ -1,0 +1,191 @@
+/* Login page — matches existing dashboard theme */
+
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: #f8fafc;
+  padding: 24px;
+}
+
+.login-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+  padding: 40px 36px;
+  width: 100%;
+  max-width: 420px;
+}
+
+/* Brand header */
+.login-card__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.login-card__mark {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.login-card__brand-text strong {
+  display: block;
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+.login-card__brand-text span {
+  font-size: 0.8125rem;
+  color: #64748b;
+}
+
+/* Heading */
+.login-card__heading {
+  margin: 0 0 6px;
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.login-card__sub {
+  margin: 0 0 28px;
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+/* Form */
+.login-form {
+  display: grid;
+  gap: 18px;
+}
+
+.login-field {
+  display: grid;
+  gap: 6px;
+}
+
+.login-field label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.login-field__input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.login-field__input-wrap input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 40px 10px 12px;
+  font-size: 0.9375rem;
+  color: #111827;
+  background: #ffffff;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+}
+
+.login-field__input-wrap input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px #dbeafe;
+}
+
+.login-field__input-wrap input.is-error {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px #fee2e2;
+}
+
+/* Show/hide password toggle */
+.login-field__toggle {
+  position: absolute;
+  right: 10px;
+  background: transparent;
+  border: 0;
+  color: #94a3b8;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  transition: color 0.15s;
+}
+
+.login-field__toggle:hover {
+  color: #334155;
+}
+
+/* Error message */
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #b91c1c;
+  font-size: 0.875rem;
+  padding: 10px 14px;
+}
+
+/* Submit button */
+.login-btn {
+  background: #2563eb;
+  border: 1px solid #2563eb;
+  border-radius: 8px;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  padding: 11px 14px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background 0.15s, opacity 0.15s;
+  margin-top: 4px;
+}
+
+.login-btn:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.login-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* Spinner inside button */
+.login-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .login-card {
+    padding: 28px 20px;
+  }
+}
