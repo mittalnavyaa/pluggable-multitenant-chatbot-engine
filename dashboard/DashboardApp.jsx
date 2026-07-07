@@ -1,0 +1,41 @@
+import { useState } from 'react';
+import { useEnterpriseDashboardData } from './hooks/useEnterpriseDashboardData.js';
+import { DashboardLayout } from './layouts/DashboardLayout.jsx';
+import { ApiKeys } from './pages/ApiKeys.jsx';
+import { Branding } from './pages/Branding.jsx';
+import { Dashboard } from './pages/Dashboard.jsx';
+import { Documents } from './pages/Documents.jsx';
+import { ProductDetails } from './pages/ProductDetails.jsx';
+import { Products } from './pages/Products.jsx';
+import { Settings } from './pages/Settings.jsx';
+import { Uploads } from './pages/Uploads';
+import './styles/dashboard.css';
+
+export function DashboardApp() {
+  const data = useEnterpriseDashboardData();
+  const [activePage, setActivePage] = useState('Dashboard');
+  const [selectedProductId, setSelectedProductId] = useState(data.selectedProduct.id);
+  const selectedProduct = data.products.find((product) => product.id === selectedProductId) || data.selectedProduct;
+
+  function viewDetails(productId) {
+    setSelectedProductId(productId);
+    setActivePage('Product Details');
+  }
+
+  const pages = {
+    Dashboard: <Dashboard data={data} />,
+    Products: <Products products={data.products} onViewDetails={viewDetails} />,
+    'Product Details': <ProductDetails product={selectedProduct} />,
+    Branding: <Branding product={selectedProduct} />,
+    Uploads: <Uploads />,
+    'API Keys': <ApiKeys keyRecords={data.keyRecords} />,
+    Documents: <Documents documents={data.documents} />,
+    Settings: <Settings settings={data.settings} />
+  };
+
+  return (
+    <DashboardLayout activePage={activePage} onNavigate={setActivePage}>
+      {pages[activePage]}
+    </DashboardLayout>
+  );
+}

@@ -1,0 +1,524 @@
+/* ── Upload page layout ──────────────────── */
+
+.upload-page {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.6fr);
+}
+
+.upload-page__main,
+.upload-page__side {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+/* ── Shared surface ──────────────────────── */
+
+.drop-zone,
+.pipeline-tracker,
+.upload-card,
+.upload-empty,
+.upload-history,
+.upload-loading {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+}
+
+/* ── Drop zone ───────────────────────────── */
+
+.drop-zone {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  padding: 40px 24px;
+  text-align: center;
+  border-style: dashed;
+  border-width: 2px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.drop-zone.is-dragging {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-bg);
+}
+
+.drop-zone input {
+  display: none;
+}
+
+/* ── Headings ────────────────────────────── */
+
+.drop-zone h2,
+.upload-page__toolbar h2,
+.pipeline-tracker h2,
+.pipeline-logs h3,
+.upload-page__history h2,
+.upload-card h3,
+.upload-empty h3 {
+  margin: 0;
+  color: var(--color-text);
+}
+
+/* ── Muted text ──────────────────────────── */
+
+.drop-zone p,
+.upload-page__toolbar p,
+.pipeline-tracker p,
+.upload-empty p,
+.upload-card span,
+.upload-card dt,
+.pipeline-tracker dt,
+.upload-timeline small {
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* ── Toolbar ─────────────────────────────── */
+
+.upload-page__toolbar {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+/* ── Buttons ─────────────────────────────── */
+
+.upload-button {
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
+  border-radius: 8px;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 10px 16px;
+  transition: opacity 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+
+.upload-button:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.upload-button--secondary {
+  background: var(--color-surface);
+  border-color: var(--color-border);
+  color: var(--color-primary);
+}
+
+.upload-button--secondary:hover:not(:disabled) {
+  background: var(--color-primary-bg);
+  border-color: var(--color-primary);
+  opacity: 1;
+}
+
+.upload-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.upload-link-button {
+  background: transparent;
+  border: 0;
+  color: var(--color-primary);
+  cursor: pointer;
+  font-size: 0.875rem;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.upload-link-button:hover {
+  background: var(--color-primary-bg);
+}
+
+/* ── Upload list ─────────────────────────── */
+
+.upload-list {
+  display: grid;
+  gap: 12px;
+}
+
+/* ── Upload card ─────────────────────────── */
+
+.upload-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.upload-card__body {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 0;
+  text-align: left;
+  color: var(--color-text);
+}
+
+.upload-card__body h3 {
+  color: var(--color-text);
+  font-size: 0.9375rem;
+  margin: 0 0 2px;
+}
+
+.upload-card dl,
+.pipeline-tracker__meta {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+
+.upload-card dd,
+.pipeline-tracker dd {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 0.875rem;
+}
+
+.upload-card__errors {
+  color: #f87171;
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.875rem;
+}
+
+.upload-card__actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  border-top: 1px solid var(--color-border);
+  padding-top: 10px;
+}
+
+/* ── Status badges ───────────────────────── */
+
+.upload-status {
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.upload-status--selected,
+.upload-status--queued,
+.upload-status--processing {
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+}
+
+.upload-status--uploading,
+.upload-status--uploaded,
+.upload-status--extracting-text,
+.upload-status--ai-formatting,
+.upload-status--generating-markdown {
+  background: var(--badge-warning-bg);
+  color: var(--badge-warning-text);
+}
+
+.upload-status--ready {
+  background: var(--badge-success-bg);
+  color: var(--badge-success-text);
+}
+
+.upload-status--invalid,
+.upload-status--failed,
+.upload-status--cancelled {
+  background: var(--badge-danger-bg);
+  color: var(--badge-danger-text);
+}
+
+/* ── Pipeline tracker ────────────────────── */
+
+.pipeline-tracker,
+.upload-empty,
+.upload-loading {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.pipeline-tracker__header {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.pipeline-tracker__header h2 {
+  font-size: 0.9375rem;
+  word-break: break-all;
+}
+
+.pipeline-tracker__header p {
+  font-size: 0.8125rem;
+}
+
+/* ── Progress bar ────────────────────────── */
+
+.upload-progress {
+  background: var(--color-border);
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.upload-progress span {
+  background: var(--color-primary);
+  display: block;
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+/* ── Timeline ────────────────────────────── */
+
+.upload-timeline {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.upload-timeline__item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.upload-timeline__item > span {
+  border: 2px solid var(--color-border);
+  border-radius: 999px;
+  flex: 0 0 14px;
+  height: 14px;
+  margin-top: 4px;
+}
+
+.upload-timeline__item--complete > span,
+.upload-timeline__item--active > span {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.upload-timeline__item strong {
+  color: var(--color-text);
+  font-size: 0.875rem;
+  display: block;
+}
+
+.upload-timeline small {
+  display: block;
+  font-size: 0.75rem;
+}
+
+/* ── Pipeline logs ───────────────────────── */
+
+.pipeline-logs h3 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.pipeline-logs ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+/* ── Upload history table ────────────────── */
+
+.upload-history {
+  overflow-x: auto;
+}
+
+.upload-history table {
+  border-collapse: collapse;
+  min-width: 820px;
+  width: 100%;
+}
+
+.upload-history th,
+.upload-history td {
+  border-bottom: 1px solid var(--color-border);
+  padding: 12px 14px;
+  text-align: left;
+  font-size: 0.875rem;
+  color: var(--color-text);
+}
+
+.upload-history th {
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.upload-history tbody tr:hover {
+  background: var(--color-bg);
+}
+
+/* ── History section heading ─────────────── */
+
+.upload-page__history {
+  display: grid;
+  gap: 12px;
+}
+
+.upload-page__history h2 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+/* ── Modal ───────────────────────────────── */
+
+.upload-modal {
+  background: rgba(15, 23, 42, 0.65);
+  inset: 0;
+  padding: 24px;
+  position: fixed;
+  z-index: 300;
+  display: grid;
+  place-items: start center;
+  overflow-y: auto;
+}
+
+.upload-modal__content {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  margin: 5vh auto;
+  max-width: 760px;
+  width: 100%;
+  padding: 20px;
+  color: var(--color-text);
+}
+
+.upload-modal__header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.upload-modal__header h2 {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.upload-modal pre {
+  background: #0f172a;
+  border-radius: 8px;
+  color: #e2e8f0;
+  overflow: auto;
+  padding: 16px;
+  font-size: 0.8125rem;
+}
+
+/* ── Loading state ───────────────────────── */
+
+.upload-loading {
+  align-items: center;
+  justify-items: center;
+  text-align: center;
+}
+
+.upload-loading p {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+/* ── Empty state ─────────────────────────── */
+
+.upload-empty {
+  text-align: center;
+  padding: 32px 24px;
+}
+
+.upload-empty h3 {
+  font-size: 1rem;
+  margin-bottom: 6px;
+}
+
+/* ── Side panel error ───────────────────── */
+
+.upload-page__error {
+  background: var(--badge-danger-bg);
+  border: 1px solid var(--badge-danger-text);
+  border-radius: 8px;
+  color: var(--badge-danger-text);
+  font-size: 0.875rem;
+  padding: 10px 14px;
+  line-height: 1.5;
+}
+
+/* ── Side panel actions ──────────────────── */
+
+.upload-page__side-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.upload-page__side-actions .upload-button {
+  flex: 1;
+  text-align: center;
+  text-decoration: none;
+}
+
+/* ── Responsive ──────────────────────────── */
+
+@media (max-width: 980px) {
+  .upload-page {
+    grid-template-columns: 1fr;
+  }
+
+  .upload-page__toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pipeline-tracker__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .upload-card dl,
+  .pipeline-tracker__meta {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .upload-card dl,
+  .pipeline-tracker__meta {
+    grid-template-columns: 1fr;
+  }
+
+  .upload-card__actions {
+    flex-wrap: wrap;
+  }
+
+  .drop-zone {
+    padding: 28px 16px;
+  }
+}

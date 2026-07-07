@@ -1,0 +1,25 @@
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { fileURLToPath, URL } from 'node:url';
+
+const dashboardRoot = fileURLToPath(new URL('.', import.meta.url));
+
+export default defineConfig({
+  root: dashboardRoot,
+  cacheDir: 'node_modules/.vite-dashboard',
+  plugins: [react()],
+  server: {
+    host: '127.0.0.1',
+    port: 5173,
+    proxy: {
+      '/uploads': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      }
+    }
+  },
+  preview: {
+    host: '127.0.0.1',
+    port: 4173
+  }
+});
