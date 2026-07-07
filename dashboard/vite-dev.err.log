@@ -1,0 +1,13 @@
+X [ERROR] Unexpected end of file in JSON
+
+    ../package.json:1:0:
+      1 │ 
+        ╵ ^
+
+[31merror when starting dev server:
+Error: Build failed with 1 error:
+../package.json:1:0: ERROR: Unexpected end of file in JSON
+    at failureErrorWithLog (C:\Users\nisha\OneDrive\pluggable-multitenant-chatbot-engine\dashboard\node_modules\esbuild\lib\main.js:1467:15)
+    at C:\Users\nisha\OneDrive\pluggable-multitenant-chatbot-engine\dashboard\node_modules\esbuild\lib\main.js:926:25
+    at C:\Users\nisha\OneDrive\pluggable-multitenant-chatbot-engine\dashboard\node_modules\esbuild\lib\main.js:1345:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
