@@ -47,6 +47,13 @@ services:
     volumes:
       - minio_data:/data
 
+  redis:
+    image: redis:7-alpine
+    container_name: chatbot-redis
+    restart: always
+    ports:
+      - "6379:6379"
+
 volumes:
   postgres_data:
   qdrant_data:
