@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from src.middleware.auth import authenticate_request
 from src.routers.upload import router as upload_router
 from src.services.storage_service import initialize_bucket
+from src.services.qdrant_service import ensure_collection_initialized
 
 app = FastAPI()
 
@@ -10,10 +11,12 @@ app.middleware("http")(authenticate_request)
 
 app.include_router(upload_router)
 
-@app.get("/")
 @app.on_event("startup")
 def startup():
     initialize_bucket()
+    ensure_collection_initialized()
+
+@app.get("/")
 def root():
 
     return {

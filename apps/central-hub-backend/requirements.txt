@@ -10,3 +10,4 @@ python-multipart
 minio
 celery
 redis
+qdrant-client
