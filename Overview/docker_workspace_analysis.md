@@ -103,17 +103,3 @@ Application Operational
 ```
 
 ---
-
-## Infrastructure Roadmap
-
-To standardise or build on this setup, reference/update these components:
-
-1. **`docker-compose.yml`**
-   * **Purpose**: Orchestrate container runtimes.
-   * **Modifications**: Ensure healthchecks are configured to guarantee Qdrant and PostgreSQL are fully operational before the backend attempts connections.
-2. **`docker/postgres/init.sql`**
-   * **Purpose**: Database schema creation.
-   * **Modifications**: Reference table layouts during SQL model mapping.
-3. **`.env.example`**
-   * **Purpose**: Configuration templating.
-   * **Modifications**: Document host URLs for Postgres, Qdrant, and Redis.
