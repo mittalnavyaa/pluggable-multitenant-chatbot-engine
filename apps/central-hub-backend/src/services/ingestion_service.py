@@ -1,12 +1,13 @@
 import uuid
+from src.services.storage_service import upload_file
 
-
-def create_upload_job():
-    job_id = str(uuid.uuid4())
+def create_upload_job(file):
+    object_name = upload_file(file)
 
     return {
-        "job_id": job_id,
-        "status": "QUEUED"
+        "job_id": str(uuid.uuid4()),
+        "status": "UPLOADING",
+        "object_name": object_name
     }
 
 

@@ -16,19 +16,11 @@ router = APIRouter(
 )
 
 
-@router.post(
-    "/upload",
-    response_model=UploadResponse
-)
+@router.post("/upload")
 async def upload_document(
     file: UploadFile = File(...)
 ):
-    """
-    Upload document endpoint.
-    """
-
-    # We'll process this later.
-    return create_upload_job()
+    return create_upload_job(file)
 
 
 @router.get(
