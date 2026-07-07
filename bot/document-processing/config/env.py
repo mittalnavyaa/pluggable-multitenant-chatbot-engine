@@ -6,9 +6,13 @@ import os
 from pathlib import Path
 
 
+# Resolve .env relative to this file so it works regardless of cwd
+_DEFAULT_ENV = Path(__file__).parent.parent / ".env"
+
+
 def load_env(env_path: str | Path | None = None) -> None:
     """Load key-value pairs from a .env file without overriding process env."""
-    path = Path(env_path) if env_path else Path.cwd() / ".env"
+    path = Path(env_path) if env_path else _DEFAULT_ENV
     if not path.exists() or not path.is_file():
         return
 

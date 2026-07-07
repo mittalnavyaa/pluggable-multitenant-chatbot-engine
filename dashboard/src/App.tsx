@@ -3,6 +3,7 @@ import { isAuthenticated } from './auth/authService';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { useEnterpriseDashboardData } from '../hooks/useEnterpriseDashboardData.js';
 import { DashboardLayout } from '../layouts/DashboardLayout.jsx';
+import { AdminDashboard } from '../pages/AdminDashboard.jsx';
 import { ApiKeys } from '../pages/ApiKeys.jsx';
 import { Branding } from '../pages/Branding.jsx';
 import { Dashboard } from '../pages/Dashboard.jsx';
@@ -16,6 +17,7 @@ import '../styles/dashboard.css';
 
 const routeTitles: Record<string, string> = {
   '/': 'Dashboard',
+  '/admin': 'Overview Dashboard',
   '/products': 'Products',
   '/branding': 'Branding',
   '/api-keys': 'API Keys',
@@ -58,6 +60,7 @@ function DashboardApp() {
     <DashboardLayout activePage={activePage} onNavigate={undefined}>
       <Routes>
         <Route path="/" element={<Dashboard data={data} />} />
+        <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/products" element={<ProductsRoute />} />
         <Route path="/products/:id" element={<ProductDetailsRoute />} />
         <Route path="/branding" element={<BrandingRoute />} />

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useEnterpriseDashboardData } from './hooks/useEnterpriseDashboardData.js';
 import { DashboardLayout } from './layouts/DashboardLayout.jsx';
+import { AdminDashboard } from './pages/AdminDashboard.jsx';
 import { ApiKeys } from './pages/ApiKeys.jsx';
 import { Branding } from './pages/Branding.jsx';
 import { Dashboard } from './pages/Dashboard.jsx';
@@ -24,6 +25,10 @@ export function DashboardApp() {
 
   const pages = {
     Dashboard: <Dashboard data={data} />,
+    'Overview Dashboard': <AdminDashboard />,
+    'Bot Control Factory': <AdminDashboard />,
+    'Ingestion Status Queues': <Documents documents={data.documents} />,
+    'Sales Conversions': <AdminDashboard />,
     Products: <Products products={data.products} onViewDetails={viewDetails} />,
     'Product Details': <ProductDetails product={selectedProduct} />,
     Branding: <Branding product={selectedProduct} />,
