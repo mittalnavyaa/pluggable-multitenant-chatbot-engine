@@ -1,6 +1,7 @@
 import logging
 from qdrant_client.http.exceptions import UnexpectedResponse
-from qdrant_client.models import HnswConfigDiff, VectorParams, Distance, KeywordIndexParams, KeywordIndexType
+from qdrant_client.models import HnswConfigDiff, VectorParams, Distance, KeywordIndexParams, KeywordIndexType, PointStruct
+from uuid import uuid4
 from src.init_qdrant import qdrant_client, QDRANT_COLLECTION, EMBEDDING_DIMENSION
 
 logger = logging.getLogger("qdrant_service")
@@ -80,3 +81,43 @@ def ensure_collection_initialized():
     except Exception as e:
         logger.error(f"Qdrant initialization failed: {str(e)}")
         raise RuntimeError(f"Failed to initialize Qdrant vector database: {str(e)}") from e
+
+def upsert_document_chunks(
+    product_id: str,
+    bot_id: str,
+    document_id: str,
+    source_filename: str,
+    chunks: list[dict],
+    embeddings: list[list[float]]
+):
+    """
+    Upserts document chunks and their embeddings into the Qdrant collection.
+    """
+    points = []
+    for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+        point_id = str(uuid4())
+        payload = {
+            "product_id": product_id,
+            "bot_id": bot_id,
+            "document_id": document_id,
+            "chunk_id": idx,
+            "page_number": chunk.get("page_number", 1),
+            "source_filename": source_filename,
+            "content": chunk.get("text", "")
+        }
+        points.append(
+            PointStruct(
+                id=point_id,
+                vector=embedding,
+                payload=payload
+            )
+        )
+
+    # Ensure collection and tenant indexes are active before upserting
+    ensure_collection_initialized()
+
+    qdrant_client.upsert(
+        collection_name=QDRANT_COLLECTION,
+        points=points
+    )
+    logger.info(f"Successfully upserted {len(points)} chunks to Qdrant for document {document_id}")

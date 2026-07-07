@@ -34,9 +34,16 @@ from src.models.document_registry import DocumentRegistry
 from src.services.storage_service import download_file_to_temp
 
 # Import extractors and sanitizers from document-processing package
+# pyrefly: ignore [missing-import]
 from extractors.extractor_factory import ExtractorFactory
+# pyrefly: ignore [missing-import]
 from pipeline.sanitizer import MarkdownSanitizer
+# pyrefly: ignore [missing-import]
 from pipeline.markdown_writer import MarkdownWriter
+
+from src.services.chunking_service import ChunkingService
+from src.services.embedding_service import EmbeddingService
+from src.services.qdrant_service import upsert_document_chunks
 
 logger = logging.getLogger("celery_worker")
 if not logger.handlers:
@@ -72,22 +79,28 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
     db = SessionLocal()
     temp_path = None
     try:
-        # Step 1: Retrieve document metadata from PostgreSQL
+        # Step 1: Retrieve document metadata and product context from PostgreSQL
         doc = db.query(DocumentRegistry).filter(DocumentRegistry.id == document_id).first()
         if not doc:
             logger.error(f"Failed: Document registry record not found for id: {document_id}")
             return {"status": "FAILED", "error": "Document not found"}
+
+        bot = db.query(Bot).filter(Bot.id == doc.bot_id).first()
+        if not bot:
+            logger.error(f"Failed: Bot record not found for id: {doc.bot_id}")
+            return {"status": "FAILED", "error": "Associated Bot not found"}
             
-        # Step 2: Update status from QUEUED to EXTRACTING
-        _update_status(document_id, "EXTRACTING")
+        product_id = str(bot.product_id)
         
-        # Step 3: Download document from MinIO
-        logger.info(f"Downloading File: {storage_path}")
+        # Step 2: Update status to DOWNLOADING and retrieve file from MinIO
+        _update_status(document_id, "DOWNLOADING")
+        logger.info("Downloading document...")
         temp_path = download_file_to_temp(storage_path)
-        logger.info(f"Downloaded File to: {temp_path}")
+        logger.info("Document downloaded.")
         
-        # Step 4: Text Extraction
-        logger.info("Extraction Started")
+        # Step 3 & 4: Update status to EXTRACTING and parse raw content
+        _update_status(document_id, "EXTRACTING")
+        logger.info("Extracting text...")
         extractor = ExtractorFactory.create(temp_path)
         extraction_result = extractor.extract(temp_path)
         
@@ -97,16 +110,14 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
             
         logger.info("Extraction Completed")
         
-        # Step 5: Sanitization
+        # Step 5: Update status to CLEANING and sanitize layout noise to Markdown
         _update_status(document_id, "CLEANING")
-        
         logger.info("Sanitization Started")
         prompts_dir = os.path.join(doc_proc_path, "prompts")
         output_dir = os.path.join(doc_proc_path, "output")
         writer = MarkdownWriter(output_dir)
         sanitizer = MarkdownSanitizer(prompts_dir=prompts_dir, writer=writer)
         
-        # Preserve original filename for output Markdown generation
         import dataclasses
         extraction_result = dataclasses.replace(extraction_result, file_name=doc.filename)
         
@@ -119,16 +130,36 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
         logger.info("Sanitization Completed")
         cleaned_markdown = sanitization_result.markdown
         
-        # Step 6: Next Pipeline Placeholder
-        logger.info("Starting downstream semantic processing placeholder...")
-        # TODO:
-        # Send Markdown to Chunking Service
-        # Receive embeddings
-        # Index into Qdrant
+        # Step 6: Update status to CHUNKING and parse Markdown semantically
+        _update_status(document_id, "CHUNKING")
+        logger.info("Chunking document...")
+        chunking_service = ChunkingService()
+        chunks = chunking_service.chunk_markdown(cleaned_markdown)
+        logger.info(f"Chunking complete. Created {len(chunks)} chunks.")
         
-        # Step 7: Completed
+        # Step 7: Update status to EMBEDDING and generate text vectors
+        _update_status(document_id, "EMBEDDING")
+        logger.info("Generating embeddings...")
+        embedding_service = EmbeddingService()
+        embeddings = [embedding_service.generate_embedding(c["text"]) for c in chunks]
+        logger.info(f"Generated {len(embeddings)} vector embeddings successfully.")
+        
+        # Step 8 & 9: Update status to STORING and index points in Qdrant
+        _update_status(document_id, "STORING")
+        logger.info("Uploading vectors...")
+        upsert_document_chunks(
+            product_id=product_id,
+            bot_id=str(doc.bot_id),
+            document_id=str(doc.id),
+            source_filename=doc.filename,
+            chunks=chunks,
+            embeddings=embeddings
+        )
+        logger.info("Vectors uploaded.")
+        
+        # Step 10: Complete the ingestion process
         _update_status(document_id, "COMPLETED")
-        logger.info("Completed")
+        logger.info("Document ingestion completed.")
         
         return {
             "status": "COMPLETED",
