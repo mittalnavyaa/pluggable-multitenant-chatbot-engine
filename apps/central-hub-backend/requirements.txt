@@ -11,3 +11,6 @@ minio
 celery
 redis
 qdrant-client
+pdfplumber
+PyPDF2
+python-docx
