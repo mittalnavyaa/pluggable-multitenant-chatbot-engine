@@ -1,0 +1,6 @@
+{
+  "name": "pluggable-multitenant-chatbot-engine",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pluggable multi-tenant chatbot engine monorepo"
+}

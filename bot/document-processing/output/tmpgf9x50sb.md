@@ -1,0 +1,4 @@
+# Welcome to the Document Processing Pipeline
+This is a sample text file for testing.
+The extractor should successfully read this file and return the complete text.
+Thank you.
