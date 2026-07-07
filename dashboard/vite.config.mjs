@@ -12,7 +12,7 @@ export default defineConfig({
     host: '127.0.0.1',
     port: 5173,
     proxy: {
-      '/uploads': {
+      '/api/v1/documents': {
         target: 'http://localhost:8000',
         changeOrigin: true
       }

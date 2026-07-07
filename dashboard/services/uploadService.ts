@@ -50,17 +50,21 @@ export function toUploadFile(file: File, existingFiles: UploadFile[]): UploadFil
   };
 }
 
-export async function uploadFile(uploadFile: UploadFile): Promise<UploadResponse> {
+export async function uploadFile(uploadFile: UploadFile, botId?: string): Promise<UploadResponse> {
   if (uploadFile.validationErrors.length > 0) {
     throw new Error(uploadFile.validationErrors.join(' '));
   }
 
   const formData = new FormData();
   formData.append('file', uploadFile.file);
+  if (botId) {
+    formData.append('bot_id', botId);
+  }
 
-  console.log('[uploadService] POST', API_BASE_URL, 'file:', uploadFile.fileName);
+  const url = '/api/v1/documents/upload' + (botId ? `?bot_id=${encodeURIComponent(botId)}` : '');
+  console.log('[uploadService] POST', url, 'file:', uploadFile.fileName);
 
-  const response = await fetch(API_BASE_URL, {
+  const response = await fetch(url, {
     method: 'POST',
     body: formData
   });

@@ -8,9 +8,10 @@ interface UploadListProps {
   onRetry: (fileId: string) => void;
   onUpload: (fileId: string) => void;
   onSelect: (fileId: string) => void;
+  isUploadDisabled?: boolean;
 }
 
-export function UploadList({ files, onRemove, onRetry, onUpload, onSelect }: UploadListProps) {
+export function UploadList({ files, onRemove, onRetry, onUpload, onSelect, isUploadDisabled = false }: UploadListProps) {
   if (files.length === 0) {
     return <EmptyState title="No files selected" description="Upload source documents to start the processing pipeline." />;
   }
@@ -25,6 +26,7 @@ export function UploadList({ files, onRemove, onRetry, onUpload, onSelect }: Upl
           onRetry={onRetry}
           onUpload={onUpload}
           onSelect={onSelect}
+          isUploadDisabled={isUploadDisabled}
         />
       ))}
     </section>

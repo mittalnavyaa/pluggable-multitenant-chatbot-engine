@@ -9,10 +9,11 @@ interface UploadCardProps {
   onRetry: (fileId: string) => void;
   onUpload: (fileId: string) => void;
   onSelect: (fileId: string) => void;
+  isUploadDisabled?: boolean;
 }
 
-export function UploadCard({ uploadFile, onRemove, onRetry, onUpload, onSelect }: UploadCardProps) {
-  const canUpload = uploadFile.status === 'selected' && uploadFile.validationErrors.length === 0;
+export function UploadCard({ uploadFile, onRemove, onRetry, onUpload, onSelect, isUploadDisabled = false }: UploadCardProps) {
+  const canUpload = uploadFile.status === 'selected' && uploadFile.validationErrors.length === 0 && !isUploadDisabled;
   const canRetry = uploadFile.status === 'failed';
 
   return (
