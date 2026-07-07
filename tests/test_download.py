@@ -17,6 +17,7 @@ if "src" in sys.modules:
     if src_file is None or not src_file.startswith(backend_path):
         del sys.modules["src"]
 
+# pyrefly: ignore [missing-import]
 from src.services.storage_service import upload_file, download_file_to_temp, BUCKET_NAME, client
 
 class MockUploadFile:
@@ -28,14 +29,6 @@ class MockUploadFile:
 def test_download_file_to_temp():
     print("=== STARTING MINIO DOWNLOAD INTEGRATION TEST ===")
     
-    # Configure logging to stdout
-    root_logger = logging.getLogger()
-    handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter('%(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    root_logger.addHandler(handler)
-    root_logger.setLevel(logging.INFO)
-
     # 1. Prepare dummy file content
     content = b"PDF-1.4 Dummy document content for MinIO file download validation."
     filename = "policy_document.pdf"
