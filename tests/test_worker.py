@@ -60,7 +60,7 @@ def test_celery_worker_pipeline():
     doc_uuid = uuid.uuid4()
     
     # 2. Upload dummy text document to MinIO
-    content = b"TXT Document raw text. Policy content: Employees get 20 days off."
+    content = b"# Leave Policy\n\nEmployees get 20 days of paid time off per calendar year.\nPlease submit requests in the HR portal at least two weeks in advance."
     filename = "leave_policy.txt"
     file = MockUploadFile(filename, content, "text/plain")
     
@@ -132,7 +132,7 @@ def test_celery_worker_pipeline():
                 "choices": [
                     {
                         "message": {
-                            "content": "# Clean Leave Policy\n\nEmployees get 20 days off."
+                            "content": "# Clean Leave Policy\n\nEmployees get 20 days of paid time off per calendar year.\nPlease submit requests in the HR portal at least two weeks in advance."
                         }
                     }
                 ]
@@ -164,7 +164,7 @@ def test_celery_worker_pipeline():
         with open(output_file, "r", encoding="utf-8") as f:
             markdown_content = f.read()
         print(f"Output content matches: {markdown_content}")
-        assert "20 days off" in markdown_content
+        assert "20 days" in markdown_content
 
         # Clean up output markdown file
         os.remove(output_file)

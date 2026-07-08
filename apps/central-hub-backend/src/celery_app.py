@@ -134,6 +134,38 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
             
         logger.info("Sanitization Completed")
         cleaned_markdown = sanitization_result.markdown
+
+        # --- VALIDATE CLEANED MARKDOWN ---
+        from config.validation_settings import ValidationSettings
+        from pipeline.markdown_validator import MarkdownValidator
+        import json
+
+        val_settings = ValidationSettings.from_env()
+        validator = MarkdownValidator(val_settings)
+        val_result = validator.validate(cleaned_markdown)
+
+        # Write validation report to disk next to the markdown output
+        val_report_path = os.path.join(output_dir, f"{os.path.splitext(doc.filename)[0]}_validation.json")
+        try:
+            report_data = {
+                "success": val_result.success,
+                "status": val_result.status,
+                "overall_score": val_result.overall_score,
+                "detected_issues": val_result.detected_issues,
+                "warnings": val_result.warnings,
+                "metrics": val_result.metrics,
+                "statistics": val_result.statistics,
+                "failure_reasons": val_result.failure_reasons
+            }
+            with open(val_report_path, "w", encoding="utf-8") as vf:
+                json.dump(report_data, vf, indent=2)
+            logger.info(f"Validation report written: {val_report_path}")
+        except Exception as e:
+            logger.error(f"Failed to write validation report: {e}")
+
+        if not val_result.success:
+            err_msg = ", ".join(val_result.failure_reasons) or "Validation failed"
+            raise RuntimeError(f"Sanitization validation failed: {err_msg}")
         
         # Step 6: Update status to CHUNKING and parse Markdown semantically
         _update_status(document_id, "CHUNKING", db)
