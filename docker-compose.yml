@@ -54,6 +54,49 @@ services:
     ports:
       - "6379:6379"
 
+  backend:
+    build:
+      context: .
+      dockerfile: apps/central-hub-backend/Dockerfile
+    container_name: chatbot-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://chatbot:chatbot123@postgres:5432/chatbot_db
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_HOST=qdrant
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - GROQ_API_KEY=fake_test_key
+    depends_on:
+      - postgres
+      - redis
+      - minio
+      - qdrant
+    restart: always
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: apps/central-hub-backend/Dockerfile
+    container_name: chatbot-celery-worker
+    command: celery -A src.celery_app.celery_app worker --loglevel=info -P solo
+    environment:
+      - DATABASE_URL=postgresql://chatbot:chatbot123@postgres:5432/chatbot_db
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_HOST=qdrant
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - GROQ_API_KEY=fake_test_key
+    depends_on:
+      - postgres
+      - redis
+      - minio
+      - qdrant
+    restart: always
+
 volumes:
   postgres_data:
   qdrant_data:
