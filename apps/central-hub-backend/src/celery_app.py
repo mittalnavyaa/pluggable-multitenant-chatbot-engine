@@ -166,6 +166,22 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
         if not val_result.success:
             err_msg = ", ".join(val_result.failure_reasons) or "Validation failed"
             raise RuntimeError(f"Sanitization validation failed: {err_msg}")
+
+        # --- UPLOAD CLEANED MARKDOWN TO MINIO ---
+        import io
+        try:
+            cleaned_markdown_bytes = cleaned_markdown.encode("utf-8")
+            cleaned_storage_path = f"{os.path.splitext(doc.storage_path)[0]}_cleaned.md"
+            minio_client.put_object(
+                BUCKET_NAME,
+                cleaned_storage_path,
+                io.BytesIO(cleaned_markdown_bytes),
+                len(cleaned_markdown_bytes),
+                content_type="text/markdown"
+            )
+            logger.info(f"Cleaned Markdown uploaded to MinIO: {cleaned_storage_path}")
+        except Exception as e:
+            logger.error(f"Failed to upload cleaned Markdown to MinIO: {e}")
         
         # Step 6: Update status to CHUNKING and parse Markdown semantically
         _update_status(document_id, "CHUNKING", db)
@@ -225,6 +241,9 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
             try:
                 logger.info(f"Permanent failure. Cleaning up storage object: {storage_path}")
                 minio_client.remove_object(BUCKET_NAME, storage_path)
+                # Clean up output markdown from storage
+                cleaned_storage_path = f"{os.path.splitext(storage_path)[0]}_cleaned.md"
+                minio_client.remove_object(BUCKET_NAME, cleaned_storage_path)
             except Exception as e:
                 logger.error(f"Failed to remove object {storage_path} from MinIO: {e}")
             raise exc

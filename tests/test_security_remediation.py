@@ -110,6 +110,20 @@ def test_security_remediation_suite():
     )
     assert resp.status_code == 200
     assert resp.json()['job_id'] == job1_id
+
+    # Test downloading when status is not COMPLETED (should return 400)
+    resp = client.get(f"/api/v1/documents/{job1_id}/download", headers=auth_headers)
+    assert resp.status_code == 400
+    assert "Markdown file is not ready yet" in resp.json()['detail']
+
+    # Test downloading invalid UUID format (should return 400)
+    resp = client.get("/api/v1/documents/invalid-uuid/download", headers=auth_headers)
+    assert resp.status_code == 400
+    
+    # Test downloading non-existent job ID (should return 404)
+    non_existent_id = str(uuid.uuid4())
+    resp = client.get(f"/api/v1/documents/{non_existent_id}/download", headers=auth_headers)
+    assert resp.status_code == 404
     
     # 6. Test Deterministic Point ID in Qdrant
     from src.services.qdrant_service import upsert_document_chunks

@@ -156,3 +156,44 @@ def list_documents(
             created_at=doc.uploaded_at.isoformat()
         ))
     return response
+
+
+from fastapi.responses import StreamingResponse
+
+@router.get("/{job_id}/download")
+async def download_markdown_file(
+    job_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Download processed clean markdown file from storage.
+    """
+    try:
+        job_uuid = UUID(job_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid job ID format.")
+
+    doc = db.query(DocumentRegistry).filter(DocumentRegistry.id == job_uuid).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Job not found.")
+
+    if doc.processing_status.upper() != "COMPLETED":
+        raise HTTPException(status_code=400, detail="Markdown file is not ready yet.")
+
+    cleaned_storage_path = f"{os.path.splitext(doc.storage_path)[0]}_cleaned.md"
+
+    # Download clean markdown from MinIO and return it as a streaming response
+    try:
+        from src.services.storage_service import client as minio_client, BUCKET_NAME
+        response = minio_client.get_object(BUCKET_NAME, cleaned_storage_path)
+        
+        filename_base = os.path.splitext(doc.filename)[0]
+        download_filename = f"{filename_base}_cleaned.md"
+
+        return StreamingResponse(
+            response,
+            media_type="text/markdown",
+            headers={"Content-Disposition": f"attachment; filename={download_filename}"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve output file from storage: {str(e)}")

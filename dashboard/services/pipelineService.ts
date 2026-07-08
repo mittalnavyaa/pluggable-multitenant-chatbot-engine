@@ -27,5 +27,5 @@ export async function getPipelineStatus(jobId: string): Promise<PipelineResponse
 }
 
 export function getOutputDownloadUrl(jobId: string): string {
-  return `/api/v1/documents/${jobId}/status`;
+  return `/api/v1/documents/${jobId}/download`;
 }
