@@ -170,6 +170,7 @@ def test_celery_worker_pipeline():
         os.remove(output_file)
 
         # 11. Verify vectors were uploaded to Qdrant
+        # pyrefly: ignore [missing-import]
         from src.init_qdrant import qdrant_client, QDRANT_COLLECTION
         points, _ = qdrant_client.scroll(
             collection_name=QDRANT_COLLECTION,
