@@ -22,31 +22,64 @@ def create_upload_job(file, bot_id: uuid.UUID, bot_name: str, db: Session):
     if not bot:
         raise HTTPException(status_code=404, detail="Bot not found.")
 
+    # Check if duplicate exists for this bot
+    existing_doc = db.execute(
+        select(DocumentRegistry).filter_by(bot_id=bot_id, document_hash=document_hash)
+    ).scalar_one_or_none()
+
     # 3. Upload file to MinIO
     try:
         object_name = upload_file(file, str(bot_id))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to upload file to storage: {str(e)}")
 
-    # 4. Insert metadata into PostgreSQL with status = 'PENDING'
-    doc_entry = DocumentRegistry(
-        bot_id=bot_id,
-        filename=file.filename,
-        storage_path=object_name,
-        document_hash=document_hash,
-        processing_status="PENDING"
-    )
-    
-    try:
-        db.add(doc_entry)
+    if existing_doc:
+        # Delete old file from MinIO if it has a different storage path
+        old_path = existing_doc.storage_path
+        if old_path != object_name:
+            try:
+                from src.services.storage_service import client as minio_client, BUCKET_NAME
+                minio_client.remove_object(BUCKET_NAME, old_path)
+            except Exception:
+                pass
+
+        # Update existing record and reuse it
+        existing_doc.storage_path = object_name
+        existing_doc.filename = file.filename
+        existing_doc.processing_status = "QUEUED"
         db.commit()
-        db.refresh(doc_entry)
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=400,
-            detail="Document with this hash already exists (duplicate upload)."
+        db.refresh(existing_doc)
+        doc_entry = existing_doc
+    else:
+        # 4. Insert metadata into PostgreSQL with status = 'PENDING'
+        doc_entry = DocumentRegistry(
+            bot_id=bot_id,
+            filename=file.filename,
+            storage_path=object_name,
+            document_hash=document_hash,
+            processing_status="PENDING"
         )
+        try:
+            db.add(doc_entry)
+            db.commit()
+            db.refresh(doc_entry)
+        except IntegrityError:
+            db.rollback()
+            existing_doc = db.execute(
+                select(DocumentRegistry).filter_by(bot_id=bot_id, document_hash=document_hash)
+            ).scalar_one_or_none()
+            if existing_doc:
+                existing_doc.storage_path = object_name
+                existing_doc.filename = file.filename
+                existing_doc.processing_status = "QUEUED"
+                db.commit()
+                db.refresh(existing_doc)
+                doc_entry = existing_doc
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Document with this hash already exists (duplicate upload)."
+                )
 
     # 5. Enqueue Celery task
     try:

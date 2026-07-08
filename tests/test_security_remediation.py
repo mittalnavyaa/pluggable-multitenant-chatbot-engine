@@ -108,8 +108,8 @@ def test_security_remediation_suite():
         headers=auth_headers,
         files={'file': ('doc.txt', dummy_text, 'text/plain')}
     )
-    assert resp.status_code == 400
-    assert 'Document with this hash already exists' in resp.json()['detail']
+    assert resp.status_code == 200
+    assert resp.json()['job_id'] == job1_id
     
     # 6. Test Deterministic Point ID in Qdrant
     from src.services.qdrant_service import upsert_document_chunks
