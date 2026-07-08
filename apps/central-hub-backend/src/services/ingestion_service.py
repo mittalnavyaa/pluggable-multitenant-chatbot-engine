@@ -17,41 +17,10 @@ def create_upload_job(file, bot_id: uuid.UUID, bot_name: str, db: Session):
     document_hash = hashlib.sha256(file_content).hexdigest()
     file.file.seek(0)  # Reset pointer to start for MinIO upload
 
-    # 2. Check if the bot exists in PostgreSQL. If not, auto-create a default product and the bot
+    # 2. Check if the bot exists in PostgreSQL.
     bot = db.execute(select(Bot).filter_by(id=bot_id)).scalar_one_or_none()
     if not bot:
-        # Check if default product exists or create one
-        default_prod_id = "default-product"
-        product = db.execute(
-            text("SELECT id FROM internal_products WHERE product_id = :val"),
-            {"val": default_prod_id}
-        ).fetchone()
-
-        if not product:
-            product_uuid = uuid.uuid4()
-            db.execute(
-                text(
-                    "INSERT INTO internal_products (id, product_id, product_name, internal_service_token_hash) "
-                    "VALUES (:id, :product_id, :product_name, :token_hash)"
-                ),
-                {
-                    "id": product_uuid,
-                    "product_id": default_prod_id,
-                    "product_name": "Default Product",
-                    "token_hash": "default_token_hash_placeholder"
-                }
-            )
-            db.commit()
-            product_id_uuid = product_uuid
-        else:
-            product_id_uuid = product[0]
-
-        # Auto-create the bot
-        db.execute(
-            text("INSERT INTO bots (id, product_id, bot_name) VALUES (:id, :product_id, :bot_name)"),
-            {"id": bot_id, "product_id": product_id_uuid, "bot_name": bot_name}
-        )
-        db.commit()
+        raise HTTPException(status_code=404, detail="Bot not found.")
 
     # 3. Upload file to MinIO
     try:

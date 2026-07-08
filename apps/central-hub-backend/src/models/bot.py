@@ -12,6 +12,7 @@ class Bot(Base):
     )
     product_id = Column(
         UUID(as_uuid=True),
+        ForeignKey("internal_products.id", ondelete="CASCADE"),
         nullable=False
     )
     bot_name = Column(

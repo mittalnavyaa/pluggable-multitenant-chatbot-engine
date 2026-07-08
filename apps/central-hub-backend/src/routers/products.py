@@ -4,6 +4,8 @@ from pydantic import BaseModel
 from typing import Optional, List, Any
 import json
 import uuid
+import secrets
+import hashlib
 
 from src.database.database import SessionLocal
 from src.models.internal_product import InternalProduct
@@ -28,6 +30,7 @@ class ProductResponseSchema(BaseModel):
     ui_theme_config: Optional[Any] = None
     created_at: str
     updated_at: str
+    service_token: Optional[str] = None
 
 @router.get("", response_model=List[ProductResponseSchema])
 def list_products(db: Session = Depends(get_db)):
@@ -100,12 +103,15 @@ def create_new_product(payload: ProductCreateSchema, db: Session = Depends(get_d
     if existing:
         raise HTTPException(status_code=400, detail="Product ID already exists")
         
+    raw_token = f"svc_{payload.product_id}_{secrets.token_urlsafe(32)}"
+    token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+    
     product_uuid = uuid.uuid4()
     new_prod = InternalProduct(
         id=product_uuid,
         product_id=payload.product_id,
         product_name=payload.name,
-        internal_service_token_hash="default_token_hash_placeholder",
+        internal_service_token_hash=token_hash,
         ui_theme_config=payload.ui_theme_config or {}
     )
     db.add(new_prod)
@@ -119,5 +125,6 @@ def create_new_product(payload: ProductCreateSchema, db: Session = Depends(get_d
         description=None,
         ui_theme_config=new_prod.ui_theme_config or {},
         created_at=new_prod.created_at.isoformat(),
-        updated_at=new_prod.updated_at.isoformat()
+        updated_at=new_prod.updated_at.isoformat(),
+        service_token=raw_token
     )

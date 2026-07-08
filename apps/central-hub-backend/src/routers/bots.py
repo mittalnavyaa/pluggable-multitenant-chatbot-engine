@@ -49,16 +49,7 @@ def list_bots(db: Session = Depends(get_db)):
 def create_new_bot(payload: BotCreateSchema, db: Session = Depends(get_db)):
     prod = db.query(InternalProduct).filter(InternalProduct.product_id == payload.product_id).first()
     if not prod:
-        product_uuid = uuid.uuid4()
-        prod = InternalProduct(
-            id=product_uuid,
-            product_id=payload.product_id,
-            product_name=payload.product_id.capitalize(),
-            internal_service_token_hash="default_token_hash_placeholder"
-        )
-        db.add(prod)
-        db.commit()
-        db.refresh(prod)
+        raise HTTPException(status_code=404, detail="Associated product not found.")
         
     new_bot = Bot(
         id=uuid.uuid4(),

@@ -16,7 +16,13 @@ class TXTExtractor(BaseExtractor):
     def _extract_text(self, file_path: Path) -> tuple[str, int]:
         try:
             return file_path.read_text(encoding="utf-8"), 1
-        except UnicodeDecodeError as exc:
-            raise EncodingValidationError(
-                f"Invalid UTF-8 encoding for text file: {file_path.name}"
-            ) from exc
+        except UnicodeDecodeError:
+            self.logger.warning(
+                f"Failed to read text file as UTF-8, trying Latin-1 fallback for: {file_path.name}"
+            )
+            try:
+                return file_path.read_text(encoding="latin-1"), 1
+            except Exception as exc:
+                raise EncodingValidationError(
+                    f"Unable to decode text file: {file_path.name}"
+                ) from exc

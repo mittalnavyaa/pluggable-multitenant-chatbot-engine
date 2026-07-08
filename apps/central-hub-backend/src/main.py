@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from src.middleware.auth import authenticate_request
 from src.routers.upload import router as upload_router
@@ -9,6 +10,14 @@ from src.services.storage_service import initialize_bucket
 from src.services.qdrant_service import ensure_collection_initialized
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.middleware("http")(authenticate_request)
 

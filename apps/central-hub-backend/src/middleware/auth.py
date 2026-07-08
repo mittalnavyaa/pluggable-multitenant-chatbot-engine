@@ -1,38 +1,41 @@
+import hashlib
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from src.database.database import SessionLocal
+from src.models.internal_product import InternalProduct
 
 async def authenticate_request(request: Request, call_next):
+    path = request.url.path
 
-    # =========================================================
-    # TODO:
-    # Enable authentication once JWT/Auth service is integrated.
-    #
-    # Steps:
-    # 1. Read Authorization header.
-    # 2. Verify JWT/API token.
-    # 3. Fetch user & tenant/product details from PostgreSQL.
-    # 4. Attach request.state.product_id and request.state.user_id.
-    # =========================================================
+    # Authenticate requests to tenant/bot/document management endpoints
+    if path.startswith(("/api/v1/bots", "/api/v1/documents", "/api/v1/dashboard")):
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Missing or invalid Authorization header. Expected Bearer <token>."}
+            )
 
-    # auth_header = request.headers.get("Authorization")
+        token = auth_header.split(" ", 1)[1].strip()
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
 
-    # if not auth_header:
-    #     return JSONResponse(
-    #         status_code=401,
-    #         content={
-    #             "message": "Authorization header missing"
-    #         }
-    #     )
+        db = SessionLocal()
+        try:
+            product = db.query(InternalProduct).filter(
+                InternalProduct.internal_service_token_hash == token_hash
+            ).first()
 
-    # TODO
-    # Verify token with PostgreSQL
+            if not product:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Invalid or unauthorized service token."}
+                )
 
-    # TODO
-    # Retrieve product_id
-
-    # TODO
-    # Attach request.state.product_id
+            # Attach validated product ID and internal DB primary key to request state
+            request.state.product_id = product.product_id
+            request.state.product_db_id = str(product.id)
+        finally:
+            db.close()
 
     response = await call_next(request)
-
     return response

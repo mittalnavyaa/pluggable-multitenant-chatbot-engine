@@ -1,9 +1,12 @@
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, text
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from src.database.base import Base
 
 class DocumentRegistry(Base):
     __tablename__ = "document_registry"
+    __table_args__ = (
+        UniqueConstraint("bot_id", "document_hash", name="unique_bot_document_hash"),
+    )
 
     id = Column(
         UUID(as_uuid=True),
@@ -25,7 +28,6 @@ class DocumentRegistry(Base):
     )
     document_hash = Column(
         String,
-        unique=True,
         nullable=False
     )
     processing_status = Column(

@@ -1,4 +1,5 @@
-from fastapi import APIRouter, UploadFile, File, Depends, Form, Query, HTTPException
+import os
+from fastapi import APIRouter, UploadFile, File, Depends, Form, Query, HTTPException, Request
 from sqlalchemy.orm import Session
 from uuid import UUID
 from typing import Optional
@@ -14,11 +15,15 @@ from src.schemas.upload import (
     UploadResponse,
     StatusResponse
 )
+from src.models.bot import Bot
 
 router = APIRouter(
     prefix="/api/v1/documents",
     tags=["Documents"]
 )
+
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
+MAX_FILE_SIZE = 25 * 1024 * 1024  # 25 MB
 
 def get_db():
     db = SessionLocal()
@@ -44,11 +49,44 @@ def resolve_bot_id(
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_document(
+    request: Request,
     file: UploadFile = File(...),
     bot_info: tuple[UUID, str] = Depends(resolve_bot_id),
     db: Session = Depends(get_db)
 ):
     bot_id, bot_name = bot_info
+
+    # 1. Validate file extension
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file extension '{ext}'. Supported extensions: PDF, DOCX, TXT."
+        )
+
+    # 2. Validate file size (max 25MB)
+    try:
+        file.file.seek(0, 2)
+        size = file.file.tell()
+        file.file.seek(0)  # Reset pointer
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to read file size: {str(e)}")
+
+    if size > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail="File exceeds the maximum limit of 25 MB."
+        )
+
+    # 3. Check bot existence and product tenant isolation
+    bot = db.query(Bot).filter(Bot.id == bot_id).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found.")
+
+    product_db_id = getattr(request.state, "product_db_id", None)
+    if product_db_id and str(bot.product_id) != product_db_id:
+        raise HTTPException(status_code=403, detail="Unauthorized access to this Bot's context.")
+
     return create_upload_job(file, bot_id, bot_name, db)
 
 

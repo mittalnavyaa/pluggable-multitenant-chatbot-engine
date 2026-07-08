@@ -94,8 +94,9 @@ def upsert_document_chunks(
     Upserts document chunks and their embeddings into the Qdrant collection.
     """
     points = []
+    import uuid
     for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
-        point_id = str(uuid4())
+        point_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{document_id}_{idx}"))
         payload = {
             "product_id": product_id,
             "bot_id": bot_id,

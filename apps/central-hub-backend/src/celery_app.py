@@ -28,10 +28,11 @@ if doc_proc_path not in sys.path:
 
 # Clear 'src' conflicts from sys.modules
 import logging
+from sqlalchemy.orm import Session
 from src.database.database import SessionLocal
 from src.models.bot import Bot
 from src.models.document_registry import DocumentRegistry
-from src.services.storage_service import download_file_to_temp
+from src.services.storage_service import download_file_to_temp, client as minio_client, BUCKET_NAME
 
 # Import extractors and sanitizers from document-processing package
 # pyrefly: ignore [missing-import]
@@ -54,8 +55,11 @@ if not logger.handlers:
     logger.addHandler(handler)
     logger.setLevel(logging.INFO)
 
-def _update_status(document_id: str, status: str):
-    db = SessionLocal()
+def _update_status(document_id: str, status: str, db: Session = None):
+    should_close = False
+    if db is None:
+        db = SessionLocal()
+        should_close = True
     try:
         doc = db.query(DocumentRegistry).filter(DocumentRegistry.id == document_id).first()
         if doc:
@@ -65,7 +69,8 @@ def _update_status(document_id: str, status: str):
     except Exception as e:
         logger.error(f"Failed to update status for {document_id}: {e}")
     finally:
-        db.close()
+        if should_close:
+            db.close()
 
 @celery_app.task(
     name="src.celery_app.process_document",
@@ -93,13 +98,13 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
         product_id = str(bot.product_id)
         
         # Step 2: Update status to DOWNLOADING and retrieve file from MinIO
-        _update_status(document_id, "DOWNLOADING")
+        _update_status(document_id, "DOWNLOADING", db)
         logger.info("Downloading document...")
         temp_path = download_file_to_temp(storage_path)
         logger.info("Document downloaded.")
         
         # Step 3 & 4: Update status to EXTRACTING and parse raw content
-        _update_status(document_id, "EXTRACTING")
+        _update_status(document_id, "EXTRACTING", db)
         logger.info("Extracting text...")
         extractor = ExtractorFactory.create(temp_path)
         extraction_result = extractor.extract(temp_path)
@@ -111,7 +116,7 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
         logger.info("Extraction Completed")
         
         # Step 5: Update status to CLEANING and sanitize layout noise to Markdown
-        _update_status(document_id, "CLEANING")
+        _update_status(document_id, "CLEANING", db)
         logger.info("Sanitization Started")
         prompts_dir = os.path.join(doc_proc_path, "prompts")
         output_dir = os.path.join(doc_proc_path, "output")
@@ -131,21 +136,21 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
         cleaned_markdown = sanitization_result.markdown
         
         # Step 6: Update status to CHUNKING and parse Markdown semantically
-        _update_status(document_id, "CHUNKING")
+        _update_status(document_id, "CHUNKING", db)
         logger.info("Chunking document...")
         chunking_service = ChunkingService()
         chunks = chunking_service.chunk_markdown(cleaned_markdown)
         logger.info(f"Chunking complete. Created {len(chunks)} chunks.")
         
         # Step 7: Update status to EMBEDDING and generate text vectors
-        _update_status(document_id, "EMBEDDING")
+        _update_status(document_id, "EMBEDDING", db)
         logger.info("Generating embeddings...")
         embedding_service = EmbeddingService()
         embeddings = [embedding_service.generate_embedding(c["text"]) for c in chunks]
         logger.info(f"Generated {len(embeddings)} vector embeddings successfully.")
         
         # Step 8 & 9: Update status to STORING and index points in Qdrant
-        _update_status(document_id, "STORING")
+        _update_status(document_id, "STORING", db)
         logger.info("Uploading vectors...")
         upsert_document_chunks(
             product_id=product_id,
@@ -158,7 +163,7 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
         logger.info("Vectors uploaded.")
         
         # Step 10: Complete the ingestion process
-        _update_status(document_id, "COMPLETED")
+        _update_status(document_id, "COMPLETED", db)
         logger.info("Document ingestion completed.")
         
         return {
@@ -184,7 +189,12 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
             raise self.retry(exc=exc, countdown=countdown)
         else:
             logger.error(f"Failed: Maximum retries exhausted for job {document_id}")
-            _update_status(document_id, "FAILED")
+            _update_status(document_id, "FAILED", db)
+            try:
+                logger.info(f"Permanent failure. Cleaning up storage object: {storage_path}")
+                minio_client.remove_object(BUCKET_NAME, storage_path)
+            except Exception as e:
+                logger.error(f"Failed to remove object {storage_path} from MinIO: {e}")
             raise exc
             
     finally:

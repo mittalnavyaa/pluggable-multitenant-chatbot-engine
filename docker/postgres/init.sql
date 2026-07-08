@@ -60,7 +60,7 @@ CREATE TABLE document_registry (
 
     storage_path TEXT NOT NULL,
 
-    document_hash TEXT UNIQUE NOT NULL,
+    document_hash TEXT NOT NULL,
 
     processing_status VARCHAR(30) DEFAULT 'PENDING',
 
@@ -68,7 +68,9 @@ CREATE TABLE document_registry (
 
     FOREIGN KEY (bot_id)
         REFERENCES bots(id)
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+
+    CONSTRAINT unique_bot_document_hash UNIQUE (bot_id, document_hash)
 );
 
 -- =====================================================
@@ -160,3 +162,14 @@ CREATE TABLE analytics (
         REFERENCES bots(id)
         ON DELETE CASCADE
 );
+
+-- =====================================================
+-- 8. Indexes for Foreign Keys
+-- =====================================================
+
+CREATE INDEX idx_bots_product_id ON bots(product_id);
+CREATE INDEX idx_document_registry_bot_id ON document_registry(bot_id);
+CREATE INDEX idx_bot_settings_bot_id ON bot_settings(bot_id);
+CREATE INDEX idx_chat_sessions_bot_id ON chat_sessions(bot_id);
+CREATE INDEX idx_messages_session_id ON messages(session_id);
+CREATE INDEX idx_analytics_bot_id ON analytics(bot_id);
