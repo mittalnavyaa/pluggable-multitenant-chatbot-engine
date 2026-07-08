@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Text, DateTime, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from src.database.base import Base
 
 class InternalProduct(Base):
@@ -24,7 +24,7 @@ class InternalProduct(Base):
         nullable=False
     )
     ui_theme_config = Column(
-        Text,
+        JSONB,
         nullable=True
     )
     created_at = Column(

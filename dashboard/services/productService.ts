@@ -61,3 +61,21 @@ export async function fetchProductById(productId: string): Promise<ProductInfo> 
   const p = await response.json();
   return p;
 }
+
+export async function createProduct(productId: string, name: string): Promise<ProductInfo> {
+  const response = await fetch('/api/v1/products', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      product_id: productId,
+      name
+    })
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create product: HTTP ${response.status}`);
+  }
+  const p = await response.json();
+  return p;
+}

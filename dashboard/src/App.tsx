@@ -34,6 +34,7 @@ function ProductsRoute() {
     <Products
       products={data.products}
       onViewDetails={(productId: string) => navigate(`/products/${productId}`)}
+      onRefresh={data.refreshProducts}
     />
   );
 }

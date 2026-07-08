@@ -87,3 +87,37 @@ def get_product(product_id: str, db: Session = Depends(get_db)):
         created_at=p.created_at.isoformat(),
         updated_at=p.updated_at.isoformat()
     )
+
+
+class ProductCreateSchema(BaseModel):
+    product_id: str
+    name: str
+    ui_theme_config: Optional[dict] = None
+
+@router.post("", response_model=ProductResponseSchema)
+def create_new_product(payload: ProductCreateSchema, db: Session = Depends(get_db)):
+    existing = db.query(InternalProduct).filter(InternalProduct.product_id == payload.product_id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Product ID already exists")
+        
+    product_uuid = uuid.uuid4()
+    new_prod = InternalProduct(
+        id=product_uuid,
+        product_id=payload.product_id,
+        product_name=payload.name,
+        internal_service_token_hash="default_token_hash_placeholder",
+        ui_theme_config=payload.ui_theme_config or {}
+    )
+    db.add(new_prod)
+    db.commit()
+    db.refresh(new_prod)
+    
+    return ProductResponseSchema(
+        id=str(new_prod.id),
+        product_id=new_prod.product_id,
+        name=new_prod.product_name,
+        description=None,
+        ui_theme_config=new_prod.ui_theme_config or {},
+        created_at=new_prod.created_at.isoformat(),
+        updated_at=new_prod.updated_at.isoformat()
+    )

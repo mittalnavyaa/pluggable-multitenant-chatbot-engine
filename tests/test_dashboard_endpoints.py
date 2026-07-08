@@ -113,10 +113,24 @@ def test_products_endpoints():
     
     # 1. Clean up existing test records if any
     db.execute(text("DELETE FROM internal_products WHERE product_id = 'test_dashboard_product'"))
+    db.execute(text("DELETE FROM internal_products WHERE product_id = 'test_posted_product'"))
     db.commit()
     
     product_uuid = uuid.uuid4()
     try:
+        # 1.5 Test Product Creation via POST /api/v1/products
+        post_payload = {
+            "product_id": "test_posted_product",
+            "name": "Test Posted Product",
+            "ui_theme_config": {"primaryColor": "#00ff00", "widgetTitle": "Posted widget"}
+        }
+        response = client.post("/api/v1/products", json=post_payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["product_id"] == "test_posted_product"
+        assert data["name"] == "Test Posted Product"
+        assert data["ui_theme_config"]["primaryColor"] == "#00ff00"
+
         # 2. Insert test product
         import json
         db.execute(
@@ -156,5 +170,6 @@ def test_products_endpoints():
         
     finally:
         db.execute(text("DELETE FROM internal_products WHERE product_id = 'test_dashboard_product'"))
+        db.execute(text("DELETE FROM internal_products WHERE product_id = 'test_posted_product'"))
         db.commit()
         db.close()
