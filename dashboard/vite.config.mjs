@@ -23,6 +23,10 @@ export default defineConfig({
       '/api/v1/bots': {
         target: 'http://localhost:8000',
         changeOrigin: true
+      },
+      '/api/v1/dashboard': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
       }
     }
   },

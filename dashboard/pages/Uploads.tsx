@@ -23,7 +23,7 @@ export function Uploads() {
   const [newBotProduct, setNewBotProduct] = useState('');
   const [newBotDesc, setNewBotDesc] = useState('');
 
-  const { products, refreshDocuments } = useEnterpriseDashboardData();
+  const { products, refreshDocuments, refreshSummary } = useEnterpriseDashboardData();
 
   useEffect(() => {
     async function loadBots() {
@@ -61,7 +61,7 @@ export function Uploads() {
   useEffect(() => {
     if (activeFile && job) {
       syncPipelineStatus(activeFile.id, job.status);
-      if (job.status === 'ready' || job.status === 'failed') {
+      if (job.status === 'ready' || job.status === 'completed' || job.status === 'failed') {
         refreshDocuments?.();
       }
     }
@@ -80,6 +80,7 @@ export function Uploads() {
       const list = await fetchBots();
       setBots(list);
       setSelectedBotId(newBot.id); // Auto-select the newly created bot
+      refreshSummary?.(); // Refresh metrics when a bot is created
       setCreateBotOpen(false);
       setNewBotName('');
       setNewBotDesc('');

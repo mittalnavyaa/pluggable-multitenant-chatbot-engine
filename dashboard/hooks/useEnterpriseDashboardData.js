@@ -208,6 +208,19 @@ const settings = [
 export function useEnterpriseDashboardData() {
   const [documentsState, setDocumentsState] = useState([]);
   const [productsState, setProductsState] = useState([]);
+  const [summaryState, setSummaryState] = useState(null);
+
+  const refreshSummary = useCallback(async () => {
+    try {
+      const response = await fetch('/api/v1/dashboard/summary');
+      if (response.ok) {
+        const data = await response.json();
+        setSummaryState(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch dashboard summary:', err);
+    }
+  }, []);
 
   const refreshDocuments = useCallback(async () => {
     try {
@@ -226,11 +239,12 @@ export function useEnterpriseDashboardData() {
           classification: 'Internal'
         }));
         setDocumentsState(mapped);
+        refreshSummary();
       }
     } catch (err) {
       console.error('Failed to fetch documents:', err);
     }
-  }, []);
+  }, [refreshSummary]);
 
   const refreshProducts = useCallback(async () => {
     try {
@@ -257,16 +271,18 @@ export function useEnterpriseDashboardData() {
           };
         });
         setProductsState(mapped);
+        refreshSummary();
       }
     } catch (err) {
       console.error('Failed to fetch products:', err);
     }
-  }, []);
+  }, [refreshSummary]);
 
   useEffect(() => {
     refreshDocuments();
     refreshProducts();
-  }, [refreshDocuments, refreshProducts]);
+    refreshSummary();
+  }, [refreshDocuments, refreshProducts, refreshSummary]);
 
   const activeProducts = productsState.length > 0 ? productsState : mockProducts;
   const activeDocuments = documentsState.length > 0 ? documentsState : [];
@@ -294,12 +310,13 @@ export function useEnterpriseDashboardData() {
     settings,
     refreshDocuments,
     refreshProducts,
+    refreshSummary,
     metrics: {
-      totalProducts: activeProducts.length,
+      totalProducts: summaryState ? summaryState.total_products : activeProducts.length,
       activeProducts: activeProductsCount,
       inactiveProducts: inactiveProductsCount,
-      uploadedDocuments: activeDocuments.length,
-      markdownFiles,
+      uploadedDocuments: summaryState ? summaryState.total_documents : activeDocuments.length,
+      markdownFiles: summaryState ? summaryState.completed_documents : markdownFiles,
       qdrantStatus: 'Healthy',
       postgresqlStatus: 'Healthy',
       llmStatus: 'Healthy'
