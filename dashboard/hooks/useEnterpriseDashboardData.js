@@ -22,7 +22,7 @@ const sharedBranding = {
   version: '1.0.0'
 };
 
-const products = [
+const mockProducts = [
   {
     id: 'tensor',
     name: 'Tensor',
@@ -187,14 +187,7 @@ const documents = [
   { id: 'doc-005', product: 'Placement Cell', fileName: 'campus-drive-process.docx', markdownFile: 'campus-drive-process.md', chunkCount: 64, embeddingStatus: 'embedded', uploadDate: '2026-07-03', owner: 'Career Services', classification: 'Internal' }
 ];
 
-const keyRecords = products.map((product, index) => ({
-  id: `key-${product.id}`,
-  product: product.name,
-  maskedKey: product.serviceTokenMasked,
-  status: product.serviceTokenStatus,
-  created: product.createdDate,
-  lastRotated: index === 2 ? '2026-07-06' : '2026-06-30'
-}));
+const keyRecords = []; // deprecated static array, calculated dynamically inside hook
 
 const recentActivity = [
   { id: 1, type: 'warning', text: 'Website Analyzer document embedding queued for seo-audit-playbook.pdf', time: '2 min ago' },
@@ -214,6 +207,7 @@ const settings = [
 
 export function useEnterpriseDashboardData() {
   const [documentsState, setDocumentsState] = useState([]);
+  const [productsState, setProductsState] = useState([]);
 
   const refreshDocuments = useCallback(async () => {
     try {
@@ -238,27 +232,72 @@ export function useEnterpriseDashboardData() {
     }
   }, []);
 
+  const refreshProducts = useCallback(async () => {
+    try {
+      const response = await fetch('/api/v1/products');
+      if (response.ok) {
+        const data = await response.json();
+        const mapped = data.map((p) => {
+          const mockProd = mockProducts.find(m => m.id === p.product_id);
+          const defaultBranding = mockProd ? mockProd.branding : sharedBranding;
+          
+          return {
+            id: p.product_id,
+            uuid: p.id,
+            name: p.name,
+            status: mockProd ? mockProd.status : 'active',
+            createdDate: p.created_at.split('T')[0],
+            serviceTokenStatus: mockProd ? mockProd.serviceTokenStatus : 'active',
+            serviceTokenMasked: mockProd ? mockProd.serviceTokenMasked : `svc_${p.product_id}_************${p.id.slice(-4).toUpperCase()}`,
+            logoInitials: mockProd ? mockProd.logoInitials : p.name.slice(0, 2).toUpperCase(),
+            branding: {
+              ...defaultBranding,
+              ...(p.ui_theme_config || {})
+            }
+          };
+        });
+        setProductsState(mapped);
+      }
+    } catch (err) {
+      console.error('Failed to fetch products:', err);
+    }
+  }, []);
+
   useEffect(() => {
     refreshDocuments();
-  }, [refreshDocuments]);
+    refreshProducts();
+  }, [refreshDocuments, refreshProducts]);
 
-  const activeDocuments = documentsState.length > 0 ? documentsState : documents;
-  const activeProducts = products.filter((product) => product.status === 'active').length;
-  const inactiveProducts = products.filter((product) => product.status !== 'active').length;
+  const activeProducts = productsState.length > 0 ? productsState : mockProducts;
+  const activeDocuments = documentsState.length > 0 ? documentsState : [];
+
+  // TODO: Integrate actual service token database mapping when key management backend endpoints are implemented.
+  const activeKeyRecords = activeProducts.map((product, index) => ({
+    id: `key-${product.id}`,
+    product: product.name,
+    maskedKey: product.serviceTokenMasked,
+    status: product.serviceTokenStatus,
+    created: product.createdDate,
+    lastRotated: index === 2 ? '2026-07-06' : '2026-06-30'
+  }));
+
+  const activeProductsCount = activeProducts.filter((product) => product.status === 'active').length;
+  const inactiveProductsCount = activeProducts.filter((product) => product.status !== 'active').length;
   const markdownFiles = activeDocuments.filter((document) => document.markdownFile).length;
 
   return {
-    products,
-    selectedProduct: products[1],
+    products: activeProducts,
+    selectedProduct: activeProducts[1] || activeProducts[0],
     documents: activeDocuments,
-    keyRecords,
+    keyRecords: activeKeyRecords,
     recentActivity,
     settings,
     refreshDocuments,
+    refreshProducts,
     metrics: {
-      totalProducts: products.length,
-      activeProducts,
-      inactiveProducts,
+      totalProducts: activeProducts.length,
+      activeProducts: activeProductsCount,
+      inactiveProducts: inactiveProductsCount,
       uploadedDocuments: activeDocuments.length,
       markdownFiles,
       qdrantStatus: 'Healthy',

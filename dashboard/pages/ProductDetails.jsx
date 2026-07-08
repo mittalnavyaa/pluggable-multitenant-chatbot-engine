@@ -1,7 +1,47 @@
+import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { StatusBadge } from '../components/StatusBadge.jsx';
 import { ThemePreview } from '../components/ThemePreview.jsx';
 
-export function ProductDetails({ product }) {
+export function ProductDetails({ product: initialProduct }) {
+  const { id } = useParams();
+  const [product, setProduct] = useState(initialProduct);
+  const [loading, setLoading] = useState(!initialProduct);
+
+  useEffect(() => {
+    async function loadProduct() {
+      try {
+        const response = await fetch(`/api/v1/products/${id}`);
+        if (response.ok) {
+          const p = await response.json();
+          setProduct({
+            id: p.product_id,
+            uuid: p.id,
+            name: p.name,
+            status: initialProduct?.status || 'active',
+            createdDate: p.created_at.split('T')[0],
+            serviceTokenStatus: initialProduct?.serviceTokenStatus || 'active',
+            serviceTokenMasked: initialProduct?.serviceTokenMasked || `svc_${p.product_id}_************${p.id.slice(-4).toUpperCase()}`,
+            logoInitials: initialProduct?.logoInitials || p.name.slice(0, 2).toUpperCase(),
+            branding: {
+              ...(initialProduct?.branding || {}),
+              ...(p.ui_theme_config || {})
+            }
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load product details:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadProduct();
+  }, [id, initialProduct]);
+
+  if (loading || !product) {
+    return <div style={{ padding: '24px', color: 'var(--color-text)' }}>Loading product details...</div>;
+  }
+
   return (
     <div className="content-grid">
       <section className="panel">

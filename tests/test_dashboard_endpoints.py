@@ -106,3 +106,55 @@ def test_bots_and_documents_endpoints():
         db.execute(text("DELETE FROM internal_products WHERE product_id = 'test_dashboard_prod'"))
         db.commit()
         db.close()
+
+
+def test_products_endpoints():
+    db = SessionLocal()
+    
+    # 1. Clean up existing test records if any
+    db.execute(text("DELETE FROM internal_products WHERE product_id = 'test_dashboard_product'"))
+    db.commit()
+    
+    product_uuid = uuid.uuid4()
+    try:
+        # 2. Insert test product
+        import json
+        db.execute(
+            text(
+                "INSERT INTO internal_products (id, product_id, product_name, internal_service_token_hash, ui_theme_config) "
+                "VALUES (:id, 'test_dashboard_product', 'Test Dashboard Product', 'hash_test', :theme)"
+            ),
+            {
+                "id": product_uuid,
+                "theme": json.dumps({"primaryColor": "#ff0000", "widgetTitle": "Test Title"})
+            }
+        )
+        db.commit()
+        
+        # 3. Test list products endpoint GET /api/v1/products
+        response = client.get("/api/v1/products")
+        assert response.status_code == 200
+        products = response.json()
+        matching = [p for p in products if p["product_id"] == "test_dashboard_product"]
+        assert len(matching) == 1
+        assert matching[0]["name"] == "Test Dashboard Product"
+        assert matching[0]["ui_theme_config"]["primaryColor"] == "#ff0000"
+        
+        # 4. Test fetch product by UUID
+        response = client.get(f"/api/v1/products/{product_uuid}")
+        assert response.status_code == 200
+        assert response.json()["name"] == "Test Dashboard Product"
+        
+        # 5. Test fetch product by product_id string
+        response = client.get("/api/v1/products/test_dashboard_product")
+        assert response.status_code == 200
+        assert response.json()["name"] == "Test Dashboard Product"
+        
+        # 6. Test product not found
+        response = client.get("/api/v1/products/does_not_exist")
+        assert response.status_code == 404
+        
+    finally:
+        db.execute(text("DELETE FROM internal_products WHERE product_id = 'test_dashboard_product'"))
+        db.commit()
+        db.close()
