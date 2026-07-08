@@ -6,9 +6,9 @@ from minio.error import S3Error
 from uuid import uuid4
 
 client = Minio(
-    "localhost:9000",
-    access_key="minioadmin",
-    secret_key="minioadmin",
+    os.getenv("MINIO_ENDPOINT", "localhost:9000"),
+    access_key=os.getenv("MINIO_ACCESS_KEY", "minioadmin"),
+    secret_key=os.getenv("MINIO_SECRET_KEY", "minioadmin"),
     secure=False
 )
 
