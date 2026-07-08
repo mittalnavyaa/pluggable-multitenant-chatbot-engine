@@ -31,6 +31,44 @@ def startup():
     initialize_bucket()
     ensure_collection_initialized()
 
+    # Run dynamic schema migrations on startup to clean up local postgres schemas
+    from sqlalchemy import text
+    from src.database.database import SessionLocal
+    db = SessionLocal()
+    try:
+        db.execute(text("""
+            DO $$
+            BEGIN
+                -- 1. Drop old global unique constraint on document_hash if it exists
+                IF EXISTS (
+                    SELECT 1 FROM pg_constraint WHERE conname = 'document_registry_document_hash_key'
+                ) THEN
+                    ALTER TABLE document_registry DROP CONSTRAINT document_registry_document_hash_key;
+                END IF;
+
+                -- 2. Add composite unique constraint if not exists
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint WHERE conname = 'unique_bot_document_hash'
+                ) THEN
+                    ALTER TABLE document_registry ADD CONSTRAINT unique_bot_document_hash UNIQUE (bot_id, document_hash);
+                END IF;
+
+                -- 3. Add bots.product_id foreign key constraint if not exists
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint WHERE conname = 'bots_product_id_fkey'
+                ) THEN
+                    ALTER TABLE bots ADD CONSTRAINT bots_product_id_fkey FOREIGN KEY (product_id) REFERENCES internal_products(id) ON DELETE CASCADE;
+                END IF;
+            END $$;
+        """))
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        import logging
+        logging.getLogger("uvicorn").error(f"Error running database schema updates on startup: {e}")
+    finally:
+        db.close()
+
 @app.get("/")
 def root():
 
