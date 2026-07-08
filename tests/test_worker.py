@@ -148,10 +148,19 @@ def test_celery_worker_pipeline():
             print(f"Task result status: {result.status}")
             assert result.status == "SUCCESS", "Task execution failed"
 
-        # 8. Verify status is COMPLETED in PostgreSQL
-        db.expire_all()
-        doc_record = db.query(DocumentRegistry).filter(DocumentRegistry.id == doc_uuid).first()
-        print(f"Verified database status: {doc_record.processing_status}")
+        # 8. Verify status is COMPLETED in PostgreSQL (poll to wait for decoupled background chunking task to finish)
+        import time
+        max_attempts = 15
+        doc_record = None
+        for attempt in range(max_attempts):
+            db.expire_all()
+            doc_record = db.query(DocumentRegistry).filter(DocumentRegistry.id == doc_uuid).first()
+            if doc_record and doc_record.processing_status == "COMPLETED":
+                break
+            time.sleep(0.5)
+
+        print(f"Verified database status: {doc_record.processing_status if doc_record else 'None'}")
+        assert doc_record is not None
         assert doc_record.processing_status == "COMPLETED", f"Expected COMPLETED, got {doc_record.processing_status}"
 
         # 9. Verify temporary document cleanup

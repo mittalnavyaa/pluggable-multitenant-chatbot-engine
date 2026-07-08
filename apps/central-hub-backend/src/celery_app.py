@@ -164,14 +164,15 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
             logger.error(f"Failed to write validation report: {e}")
 
         if not val_result.success:
+            _update_status(document_id, "VALIDATION_FAILED", db)
             err_msg = ", ".join(val_result.failure_reasons) or "Validation failed"
             raise RuntimeError(f"Sanitization validation failed: {err_msg}")
 
         # --- UPLOAD CLEANED MARKDOWN TO MINIO ---
         import io
+        cleaned_storage_path = f"{os.path.splitext(doc.storage_path)[0]}_cleaned.md"
         try:
             cleaned_markdown_bytes = cleaned_markdown.encode("utf-8")
-            cleaned_storage_path = f"{os.path.splitext(doc.storage_path)[0]}_cleaned.md"
             minio_client.put_object(
                 BUCKET_NAME,
                 cleaned_storage_path,
@@ -182,40 +183,20 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
             logger.info(f"Cleaned Markdown uploaded to MinIO: {cleaned_storage_path}")
         except Exception as e:
             logger.error(f"Failed to upload cleaned Markdown to MinIO: {e}")
-        
-        # Step 6: Update status to CHUNKING and parse Markdown semantically
-        _update_status(document_id, "CHUNKING", db)
-        logger.info("Chunking document...")
-        chunking_service = ChunkingService()
-        chunks = chunking_service.chunk_markdown(cleaned_markdown)
-        logger.info(f"Chunking complete. Created {len(chunks)} chunks.")
-        
-        # Step 7: Update status to EMBEDDING and generate text vectors
-        _update_status(document_id, "EMBEDDING", db)
-        logger.info("Generating embeddings...")
-        embedding_service = EmbeddingService()
-        embeddings = [embedding_service.generate_embedding(c["text"]) for c in chunks]
-        logger.info(f"Generated {len(embeddings)} vector embeddings successfully.")
-        
-        # Step 8 & 9: Update status to STORING and index points in Qdrant
-        _update_status(document_id, "STORING", db)
-        logger.info("Uploading vectors...")
-        upsert_document_chunks(
-            product_id=product_id,
-            bot_id=str(doc.bot_id),
-            document_id=str(doc.id),
-            source_filename=doc.filename,
-            chunks=chunks,
-            embeddings=embeddings
+
+        # --- HANDOFF VIA PIPELINE SYNCHRONIZATION HOOK ---
+        from pipeline.sync_hook import PipelineSyncHook
+        sync_hook = PipelineSyncHook(db=db)
+        handoff_success = sync_hook.hand_off(
+            document_id=document_id,
+            val_result=val_result,
+            cleaned_storage_path=cleaned_storage_path
         )
-        logger.info("Vectors uploaded.")
-        
-        # Step 10: Complete the ingestion process
-        _update_status(document_id, "COMPLETED", db)
-        logger.info("Document ingestion completed.")
-        
+        if not handoff_success:
+            raise RuntimeError("Pipeline synchronization handoff failed.")
+
         return {
-            "status": "COMPLETED",
+            "status": "READY_FOR_CHUNKING",
             "document_id": document_id,
             "bot_id": bot_id,
             "storage_path": storage_path
@@ -255,4 +236,92 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
                 os.remove(temp_path)
             except Exception as e:
                 logger.error(f"Failed to remove temp file {temp_path}: {e}")
+        db.close()
+
+
+from sqlalchemy import text
+import uuid
+
+@celery_app.task(bind=True, max_retries=3)
+def process_chunking(self, payload: dict):
+    """Downstream Celery task for Step 3: Chunking, Embedding, and Indexing."""
+    document_id = payload.get("document_id")
+    cleaned_storage_path = payload.get("cleaned_storage_path")
+    bot_id = payload.get("bot_id")
+    storage_path = payload.get("storage_path")
+
+    logger.info(f"Step 3 Chunking task started for document {document_id}")
+    db = SessionLocal()
+    
+    try:
+        doc = db.query(DocumentRegistry).filter(DocumentRegistry.id == uuid.UUID(document_id)).first()
+        if not doc:
+            raise RuntimeError(f"Document not found in database: {document_id}")
+
+        # 1. Update status to CHUNKING
+        _update_status(document_id, "CHUNKING", db)
+
+        # 2. Download Cleaned Markdown from MinIO
+        logger.info(f"Downloading cleaned Markdown from MinIO: {cleaned_storage_path}")
+        try:
+            minio_response = minio_client.get_object(BUCKET_NAME, cleaned_storage_path)
+            cleaned_markdown = minio_response.read().decode("utf-8")
+        except Exception as e:
+            raise RuntimeError(f"Failed to download cleaned Markdown from MinIO: {e}")
+
+        # 3. Perform Chunking
+        logger.info("Chunking document...")
+        chunking_service = ChunkingService()
+        chunks = chunking_service.chunk_markdown(cleaned_markdown)
+        logger.info(f"Chunking complete. Created {len(chunks)} chunks.")
+
+        # 4. Generate Embeddings
+        _update_status(document_id, "EMBEDDING", db)
+        logger.info("Generating embeddings...")
+        embedding_service = EmbeddingService()
+        embeddings = [embedding_service.generate_embedding(c["text"]) for c in chunks]
+        logger.info("Embeddings generation complete.")
+
+        # 5. Upload vectors to Qdrant
+        _update_status(document_id, "STORING", db)
+        logger.info("Uploading vectors to Qdrant...")
+        bot = db.query(Bot).filter(Bot.id == doc.bot_id).first()
+        product_id = str(bot.product_id)
+        
+        upsert_document_chunks(
+            product_id=product_id,
+            bot_id=bot.id,
+            document_id=uuid.UUID(document_id),
+            source_filename=doc.filename,
+            chunks=chunks,
+            embeddings=embeddings
+        )
+        logger.info("Vectors uploaded.")
+
+        # 6. Update status to COMPLETED
+        _update_status(document_id, "COMPLETED", db)
+        logger.info("Document ingestion completed.")
+
+        return {
+            "status": "COMPLETED",
+            "document_id": document_id,
+            "bot_id": bot_id,
+            "storage_path": storage_path
+        }
+    except Exception as exc:
+        logger.error(f"Error processing chunking job {document_id}: {exc}")
+        if self.request.retries < self.max_retries:
+            countdown = (2 ** self.request.retries) * 2
+            logger.info(f"Retry chunking attempt {self.request.retries + 1} in {countdown} seconds...")
+            raise self.retry(exc=exc, countdown=countdown)
+        else:
+            logger.error(f"Failed: Maximum retries exhausted for chunking job {document_id}")
+            _update_status(document_id, "FAILED", db)
+            try:
+                minio_client.remove_object(BUCKET_NAME, storage_path)
+                minio_client.remove_object(BUCKET_NAME, cleaned_storage_path)
+            except Exception as e:
+                logger.error(f"Failed cleanup: {e}")
+            raise exc
+    finally:
         db.close()
