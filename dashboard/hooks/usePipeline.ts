@@ -1,20 +1,90 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getPipelineStatus, isTerminalPipelineStatus } from '../services/pipelineService';
-import type { PipelineResponse, UploadJob } from '../types/upload';
+import type { PipelineResponse, UploadJob, PipelineStatus } from '../types/upload';
 import { usePolling } from './usePolling';
 
 function normalizePipelineResponse(response: PipelineResponse, fileName: string): UploadJob {
+  // Normalize backend status to lowercase PipelineStatus
+  let status = (response.status || 'queued').toLowerCase() as PipelineStatus;
+  if (status === 'completed') {
+    status = 'ready';
+  }
+
+  // Set default progress and current step based on status
+  let defaultProgress = 0;
+  let defaultStep = 'Queued';
+  if (status === 'uploading') {
+    defaultProgress = 20;
+    defaultStep = 'Uploading File';
+  } else if (status === 'uploaded') {
+    defaultProgress = 40;
+    defaultStep = 'Uploaded';
+  } else if (status === 'extracting_text') {
+    defaultProgress = 60;
+    defaultStep = 'Extracting Text';
+  } else if (status === 'ai_formatting') {
+    defaultProgress = 80;
+    defaultStep = 'AI Formatting';
+  } else if (status === 'generating_markdown') {
+    defaultProgress = 90;
+    defaultStep = 'Generating Markdown';
+  } else if (status === 'ready') {
+    defaultProgress = 100;
+    defaultStep = 'Processing Complete';
+  } else if (status === 'failed') {
+    defaultProgress = 100;
+    defaultStep = 'Processing Failed';
+  } else if (status === 'queued') {
+    defaultProgress = 10;
+    defaultStep = 'Queued';
+  }
+
+  // Create a fallback timeline if not provided
+  const timelineSteps: { step: PipelineStatus; label: string }[] = [
+    { step: 'queued', label: 'Queued' },
+    { step: 'uploading', label: 'Uploading' },
+    { step: 'uploaded', label: 'Uploaded to Storage' },
+    { step: 'extracting_text', label: 'Text Extraction' },
+    { step: 'ai_formatting', label: 'AI Refinement' },
+    { step: 'generating_markdown', label: 'Markdown Generation' },
+    { step: 'ready', label: 'Ready' }
+  ];
+
+  const defaultTimeline = timelineSteps.map((s, idx) => {
+    let state: 'complete' | 'active' | 'pending' | 'failed' | 'cancelled' = 'pending';
+    if (status === 'failed') {
+      state = 'failed';
+    } else if (status === 'cancelled') {
+      state = 'cancelled';
+    } else {
+      const currentIdx = timelineSteps.findIndex(x => x.step === status);
+      if (currentIdx !== -1) {
+        if (idx < currentIdx) {
+          state = 'complete';
+        } else if (idx === currentIdx) {
+          state = 'active';
+        }
+      }
+    }
+    return {
+      step: s.step,
+      label: s.label,
+      timestamp: '',
+      state
+    };
+  });
+
   return {
     jobId: response.job_id,
     fileName,
-    status: response.status,
-    progress: response.progress,
-    currentStep: response.current_step,
-    estimatedTime: response.estimated_time,
+    status,
+    progress: response.progress !== undefined ? response.progress : defaultProgress,
+    currentStep: response.current_step || defaultStep,
+    estimatedTime: response.estimated_time || 'Unknown',
     outputFile: response.output_file,
     errorMessage: response.error_message,
-    logs: response.logs,
-    timeline: response.timeline
+    logs: response.logs || [],
+    timeline: response.timeline || defaultTimeline
   };
 }
 
