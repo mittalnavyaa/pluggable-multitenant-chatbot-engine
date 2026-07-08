@@ -23,7 +23,7 @@ export function Uploads() {
   const [newBotProduct, setNewBotProduct] = useState('');
   const [newBotDesc, setNewBotDesc] = useState('');
 
-  const { products } = useEnterpriseDashboardData();
+  const { products, refreshDocuments } = useEnterpriseDashboardData();
 
   useEffect(() => {
     async function loadBots() {
@@ -61,7 +61,7 @@ export function Uploads() {
   useEffect(() => {
     if (activeFile && job) {
       syncPipelineStatus(activeFile.id, job.status);
-      if (job.status === 'ready' || job.status === 'completed' || job.status === 'failed') {
+      if (job.status === 'ready' || job.status === 'failed') {
         refreshDocuments?.();
       }
     }
