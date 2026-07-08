@@ -61,8 +61,16 @@ export function Uploads() {
   useEffect(() => {
     if (activeFile && job) {
       syncPipelineStatus(activeFile.id, job.status);
+      if (job.status === 'ready' || job.status === 'completed' || job.status === 'failed') {
+        refreshDocuments?.();
+      }
     }
-  }, [activeFile, job, syncPipelineStatus]);
+  }, [activeFile, job, syncPipelineStatus, refreshDocuments]);
+
+  // Refetch documents list when local file uploading status transitions occur
+  useEffect(() => {
+    refreshDocuments?.();
+  }, [files, refreshDocuments]);
 
   const handleCreateBotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

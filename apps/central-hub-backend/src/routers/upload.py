@@ -65,3 +65,56 @@ async def document_status(
     """
 
     return get_job_status(job_id, db)
+
+
+from src.models.bot import Bot
+from src.models.internal_product import InternalProduct
+from src.models.document_registry import DocumentRegistry
+from pydantic import BaseModel
+from typing import List
+
+class DocumentListResponse(BaseModel):
+    id: str
+    filename: str
+    status: str
+    bot_id: str
+    product_id: str
+    created_at: str
+
+@router.get("", response_model=List[DocumentListResponse])
+def list_documents(
+    bot_id: Optional[str] = Query(None),
+    product_id: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    query = db.query(DocumentRegistry, Bot, InternalProduct)\
+              .join(Bot, DocumentRegistry.bot_id == Bot.id)\
+              .join(InternalProduct, Bot.product_id == InternalProduct.id)
+              
+    if bot_id:
+        try:
+            bot_uuid = UUID(bot_id)
+            query = query.filter(DocumentRegistry.bot_id == bot_uuid)
+        except ValueError:
+            pass
+            
+    if product_id:
+        query = query.filter(InternalProduct.product_id == product_id)
+        
+    if status:
+        query = query.filter(DocumentRegistry.processing_status == status.upper())
+        
+    results = query.all()
+    
+    response = []
+    for doc, bot, prod in results:
+        response.append(DocumentListResponse(
+            id=str(doc.id),
+            filename=doc.filename,
+            status=doc.processing_status.lower(),
+            bot_id=str(doc.bot_id),
+            product_id=prod.product_id,
+            created_at=doc.uploaded_at.isoformat()
+        ))
+    return response

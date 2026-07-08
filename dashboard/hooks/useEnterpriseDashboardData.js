@@ -1,3 +1,5 @@
+import { useState, useEffect, useCallback } from 'react';
+
 const sharedBranding = {
   backgroundColor: '#F8FAFC',
   surfaceColor: '#FFFFFF',
@@ -211,22 +213,53 @@ const settings = [
 ];
 
 export function useEnterpriseDashboardData() {
+  const [documentsState, setDocumentsState] = useState([]);
+
+  const refreshDocuments = useCallback(async () => {
+    try {
+      const response = await fetch('/api/v1/documents');
+      if (response.ok) {
+        const data = await response.json();
+        const mapped = data.map((d) => ({
+          id: d.id,
+          product: d.product_id ? d.product_id.charAt(0).toUpperCase() + d.product_id.slice(1) : 'Tensor',
+          fileName: d.filename,
+          markdownFile: d.filename.split('.')[0] + '.md',
+          chunkCount: 'Pending',
+          embeddingStatus: d.status.toLowerCase() === 'completed' ? 'embedded' : d.status.toLowerCase(),
+          uploadDate: d.created_at.split('T')[0],
+          owner: 'System Ingestion',
+          classification: 'Internal'
+        }));
+        setDocumentsState(mapped);
+      }
+    } catch (err) {
+      console.error('Failed to fetch documents:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshDocuments();
+  }, [refreshDocuments]);
+
+  const activeDocuments = documentsState.length > 0 ? documentsState : documents;
   const activeProducts = products.filter((product) => product.status === 'active').length;
   const inactiveProducts = products.filter((product) => product.status !== 'active').length;
-  const markdownFiles = documents.filter((document) => document.markdownFile).length;
+  const markdownFiles = activeDocuments.filter((document) => document.markdownFile).length;
 
   return {
     products,
     selectedProduct: products[1],
-    documents,
+    documents: activeDocuments,
     keyRecords,
     recentActivity,
     settings,
+    refreshDocuments,
     metrics: {
       totalProducts: products.length,
       activeProducts,
       inactiveProducts,
-      uploadedDocuments: documents.length,
+      uploadedDocuments: activeDocuments.length,
       markdownFiles,
       qdrantStatus: 'Healthy',
       postgresqlStatus: 'Healthy',
