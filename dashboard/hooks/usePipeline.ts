@@ -5,10 +5,8 @@ import { usePolling } from './usePolling';
 
 function normalizePipelineResponse(response: PipelineResponse, fileName: string): UploadJob {
   // Normalize backend status to lowercase PipelineStatus
-  let status = (response.status || 'queued').toLowerCase() as PipelineStatus;
-  if (status === 'completed') {
-    status = 'ready';
-  }
+  const rawStatus = (response.status || 'queued').toLowerCase();
+  const status = (rawStatus === 'completed' ? 'ready' : rawStatus) as PipelineStatus;
 
   // Set default progress and current step based on status
   let defaultProgress = 0;
