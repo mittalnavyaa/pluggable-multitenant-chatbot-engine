@@ -270,47 +270,46 @@ def process_chunking(self, payload: dict):
         except Exception as e:
             raise RuntimeError(f"Failed to download cleaned Markdown from MinIO: {e}")
 
-        # 3. Perform Chunking
+        # 3. Perform Chunking using ChunkingService
         logger.info("Chunking document...")
         bot = db.query(Bot).filter(Bot.id == doc.bot_id).first()
         product_id = str(bot.product_id) if bot else "default-product"
 
-        from chunking.config import ChunkingConfig
-        from chunking.pipeline import SemanticChunkingPipeline
-
-        chunk_config = ChunkingConfig(
-            chunk_size=1000 // 4,
-            overlap_size=200 // 4
+        chunking_service = ChunkingService(
+            chunk_size=1000,
+            chunk_overlap=200
         )
-        chunk_pipeline = SemanticChunkingPipeline(config=chunk_config)
-        chunks = chunk_pipeline.run(
+        chunks_dict_list = chunking_service.chunk_markdown_advanced(
             markdown_text=cleaned_markdown,
             platform_id=product_id,
             document_id=document_id,
             job_id=payload.get("job_id", document_id),
             source_filename=payload.get("metadata", {}).get("filename", doc.filename),
-            correlation_id=payload.get("correlation_id", ""),
-            bot_id=str(doc.bot_id) if doc.bot_id else None
+            correlation_id=payload.get("correlation_id", "")
         )
-        logger.info(f"Chunking complete. Created {len(chunks)} chunks.")
+        logger.info(f"Chunking complete. Created {len(chunks_dict_list)} chunks.")
 
-        # 4. Enforce Multi-Tenant Payload Stamping & Upload to Qdrant
+        # 4. Generate Embeddings using EmbeddingService
         _update_status(document_id, "EMBEDDING", db)
-        
-        from tenant_stamping.stamping_pipeline import MultiTenantStampingPipeline
+        logger.info("Generating embeddings...")
+        embedding_service = EmbeddingService()
+        embeddings = [
+            embedding_service.generate_embedding(chunk["text"])
+            for chunk in chunks_dict_list
+        ]
 
-        stamping_pipeline = MultiTenantStampingPipeline(db_session=db)
-        
+        # 5. Index chunks and embeddings to Qdrant using upsert_document_chunks
         _update_status(document_id, "STORING", db)
-        ingest_result = stamping_pipeline.run(
-            platform_id=product_id,
-            chunks=chunks,
+        logger.info("Uploading embeddings to Qdrant...")
+        upsert_document_chunks(
+            product_id=product_id,
+            bot_id=str(doc.bot_id),
+            document_id=str(doc.id),
             source_filename=payload.get("metadata", {}).get("filename", doc.filename),
-            correlation_id=payload.get("correlation_id", ""),
-            job_id=payload.get("job_id", document_id),
-            document_id=document_id
+            chunks=chunks_dict_list,
+            embeddings=embeddings
         )
-        logger.info(f"Ingestion pipeline completed successfully: {ingest_result}")
+        logger.info("Ingestion pipeline completed successfully.")
 
         # 6. Update status to COMPLETED
         _update_status(document_id, "COMPLETED", db)
