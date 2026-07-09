@@ -293,19 +293,21 @@ def process_chunking(self, payload: dict):
         )
         logger.info(f"Chunking complete. Created {len(chunks)} chunks.")
 
-        # 4. Generate Embeddings & Upload to Qdrant via the Ingestion Pipeline
+        # 4. Enforce Multi-Tenant Payload Stamping & Upload to Qdrant
         _update_status(document_id, "EMBEDDING", db)
         
-        from embedding.config import EmbeddingConfig
-        from embedding.ingestion_pipeline import EmbeddingIngestionPipeline
+        from tenant_stamping.stamping_pipeline import MultiTenantStampingPipeline
 
-        embed_config = EmbeddingConfig.from_env()
-        embedding_pipeline = EmbeddingIngestionPipeline(config=embed_config)
+        stamping_pipeline = MultiTenantStampingPipeline(db_session=db)
         
         _update_status(document_id, "STORING", db)
-        ingest_result = embedding_pipeline.run(
+        ingest_result = stamping_pipeline.run(
+            platform_id=product_id,
             chunks=chunks,
-            source_filename=payload.get("metadata", {}).get("filename", doc.filename)
+            source_filename=payload.get("metadata", {}).get("filename", doc.filename),
+            correlation_id=payload.get("correlation_id", ""),
+            job_id=payload.get("job_id", document_id),
+            document_id=document_id
         )
         logger.info(f"Ingestion pipeline completed successfully: {ingest_result}")
 
