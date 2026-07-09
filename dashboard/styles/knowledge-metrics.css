@@ -399,3 +399,173 @@
   cursor: pointer;
   text-decoration: underline;
 }
+
+/* ── Sync Tracker Panel ──────────────────────── */
+
+.sync-tracker-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.sync-tracker-panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.sync-tracker-panel__title {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.sync-tracker-panel__job-id {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.sync-tracker-panel__meta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.btn-cancel-sync {
+  background: var(--badge-danger-bg);
+  border: 1px solid var(--badge-danger-text);
+  color: var(--badge-danger-text);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn-cancel-sync:hover {
+  opacity: 0.85;
+}
+
+.sync-progress-bar-container {
+  background: var(--color-bg);
+  height: 18px;
+  border-radius: 9px;
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sync-progress-bar {
+  background: var(--color-primary);
+  height: 100%;
+  position: absolute;
+  left: 0;
+  top: 0;
+  transition: width 0.3s ease-out;
+  border-radius: 9px 0 0 9px;
+}
+
+.sync-progress-percent {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-text-inverted);
+  position: relative;
+  z-index: 2;
+  mix-blend-mode: difference;
+}
+
+.sync-steps-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.sync-step-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  position: relative;
+}
+
+.sync-step-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  transition: all 0.2s ease;
+}
+
+.sync-step-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  transition: color 0.2s ease;
+}
+
+.sync-step-item--complete .sync-step-dot {
+  background: var(--badge-success-bg);
+  color: var(--badge-success-text);
+  border-color: var(--badge-success-text);
+}
+
+.sync-step-item--complete .sync-step-label {
+  color: var(--badge-success-text);
+  font-weight: 600;
+}
+
+.sync-step-item--active .sync-step-dot {
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-bg);
+  animation: pulse-kf 1.5s infinite;
+}
+
+.sync-step-item--active .sync-step-label {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* Connective lines for steps */
+@media (min-width: 768px) {
+  .sync-step-item:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: 12px;
+    left: calc(50% + 16px);
+    right: calc(-50% + 16px);
+    height: 2px;
+    background: var(--color-border);
+    z-index: 0;
+  }
+
+  .sync-step-item--complete:not(:last-child)::after {
+    background: var(--badge-success-text);
+  }
+}
+

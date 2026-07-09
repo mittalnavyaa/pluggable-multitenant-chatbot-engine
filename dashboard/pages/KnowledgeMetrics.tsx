@@ -1,7 +1,7 @@
-// dashboard/pages/KnowledgeMetrics.tsx
-
 import React from 'react';
 import { useKnowledgeMetrics } from '../hooks/useKnowledgeMetrics';
+import { useKnowledgeSync } from '../hooks/useKnowledgeSync';
+import { SyncProgressTracker } from '../components/knowledge-dashboard/SyncProgressTracker';
 import { PipelineTimeline } from '../components/knowledge-dashboard/PipelineTimeline';
 import { StorageAnalytics } from '../components/knowledge-dashboard/StorageAnalytics';
 import { ActivityFeed } from '../components/knowledge-dashboard/ActivityFeed';
@@ -50,6 +50,21 @@ export function KnowledgeMetrics() {
     refresh
   } = useKnowledgeMetrics();
 
+  // Initialize manual chatbot brain synchronization hook
+  const {
+    syncState,
+    currentStep,
+    progress,
+    duration,
+    jobId,
+    error: syncError,
+    pendingDocsCount,
+    startSyncConfirm,
+    confirmSync,
+    cancelSync,
+    resetSync
+  } = useKnowledgeSync(refresh);
+
   // Formatting helpers
   const formatSize = (bytes: number) => {
     if (bytes === 0) return '0 B';
@@ -78,6 +93,35 @@ export function KnowledgeMetrics() {
           </span>
         </div>
         <div className="knowledge-toolbar__actions">
+          {/* Synchronize Brain Trigger Button */}
+          <button
+            type="button"
+            className="btn-refresh"
+            style={{
+              background: 'var(--color-primary)',
+              color: 'var(--color-text-inverted)',
+              borderColor: 'var(--color-primary-dark)'
+            }}
+            onClick={() => startSyncConfirm(allDocumentsRaw)}
+            disabled={loading || refreshing || syncState === 'synchronizing'}
+            title="Synchronize chatbot brain knowledge base"
+            aria-label="Synchronize Chatbot Brain"
+          >
+            <svg
+              className={syncState === 'synchronizing' ? 'spinning' : ''}
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+            >
+              <path d="M12 4.5L14.5 7l-2.5 2.5M4 11.5L1.5 9l2.5-2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M1.5 8h13" strokeLinecap="round"/>
+            </svg>
+            {syncState === 'synchronizing' ? 'Synchronizing...' : 'Synchronize Brain'}
+          </button>
+
           <button
             type="button"
             className="btn-refresh"
@@ -100,6 +144,94 @@ export function KnowledgeMetrics() {
           </button>
         </div>
       </header>
+
+      {/* Confirmation Dialog / Modal */}
+      {syncState === 'confirming' && (
+        <div className="upload-modal" role="dialog" aria-modal="true" aria-label="Confirm Synchronization">
+          <div className="upload-modal__content" style={{ maxWidth: '480px' }}>
+            <div className="upload-modal__header">
+              <h2>Confirm Knowledge Sync</h2>
+              <button className="upload-link-button" type="button" onClick={cancelSync}>Close</button>
+            </div>
+            <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', marginBottom: '16px', lineHeight: '1.4' }}>
+              You are manually triggering chatbot knowledge base synchronization. This indexes all pending, sanitized documents into Qdrant vector storage.
+            </p>
+            <div style={{
+              background: 'var(--color-bg)',
+              padding: '14px',
+              borderRadius: '8px',
+              fontSize: '13px',
+              border: '1px solid var(--color-border)',
+              marginBottom: '20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px'
+            }}>
+              <div>Pending Documents: <strong style={{ color: 'var(--color-primary)' }}>{pendingDocsCount}</strong></div>
+              <div>Estimated Processing Time: <strong>{pendingDocsCount > 0 ? `${pendingDocsCount * 2.5} seconds` : '0 seconds'}</strong></div>
+              <div>Current status: <strong>{pendingDocsCount > 0 ? 'Changes pending' : 'Up to date'}</strong></div>
+              <div style={{ color: 'var(--color-text-muted)', fontSize: '11px', marginTop: '4px' }}>
+                Note: Manual sync ensures instant updates for client-facing chatbot responses.
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button className="btn-refresh" type="button" onClick={cancelSync}>Cancel</button>
+              <button
+                className="btn-refresh"
+                style={{
+                  background: 'var(--color-primary)',
+                  color: 'var(--color-text-inverted)',
+                  borderColor: 'var(--color-primary-dark)'
+                }}
+                type="button"
+                onClick={confirmSync}
+              >
+                Confirm Sync
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sync Action Tracker */}
+      {syncState === 'synchronizing' && (
+        <SyncProgressTracker
+          currentStep={currentStep}
+          progress={progress}
+          duration={duration}
+          jobId={jobId}
+          onCancel={cancelSync}
+        />
+      )}
+
+      {/* Success Notification Banner */}
+      {syncState === 'completed' && (
+        <div 
+          className="error-banner" 
+          style={{
+            background: 'var(--badge-success-bg)',
+            borderColor: 'var(--badge-success-text)',
+            color: 'var(--badge-success-text)'
+          }} 
+          role="status"
+        >
+          <span>
+            <strong>Success:</strong> Chatbot brain synchronized successfully at {new Date().toLocaleTimeString()}! All pending updates are now live.
+          </span>
+          <button type="button" onClick={resetSync} style={{ textDecoration: 'none', fontWeight: 700 }}>✕</button>
+        </div>
+      )}
+
+      {/* Failure Notification Banner */}
+      {syncState === 'failed' && (
+        <div className="error-banner" role="alert">
+          <span><strong>Synchronization Failed:</strong> {syncError || 'An error occurred.'}</span>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button type="button" onClick={confirmSync}>Retry</button>
+            <button type="button" onClick={resetSync}>Dismiss</button>
+          </div>
+        </div>
+      )}
 
       {/* Error state */}
       {error && (
