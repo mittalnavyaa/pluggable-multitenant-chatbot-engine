@@ -37,3 +37,27 @@ export class NotImplementedError extends SDKError {
     super(`SDK Feature Error: The method "${methodName}" is not implemented in this version.`);
   }
 }
+
+export class InvalidSignatureError extends SDKError {
+  constructor(reason = "HMAC signature mismatch") {
+    super(`SDK Security Error: Invalid request signature - ${reason}.`);
+  }
+}
+
+export class BackendUnavailableError extends SDKError {
+  constructor(endpoint: string, details?: string) {
+    super(`SDK Network Error: Central backend at ${endpoint} is unavailable.${details ? ` ${details}` : ""}`);
+  }
+}
+
+export class ProxyTimeoutError extends SDKError {
+  constructor(endpoint: string, timeoutMs: number) {
+    super(`SDK Timeout Error: Request to ${endpoint} timed out after ${timeoutMs}ms.`);
+  }
+}
+
+export class UnauthorizedProxyRequest extends SDKError {
+  constructor(reason = "Missing or invalid authorization context") {
+    super(`SDK Access Error: Unauthorized proxy routing request - ${reason}.`);
+  }
+}

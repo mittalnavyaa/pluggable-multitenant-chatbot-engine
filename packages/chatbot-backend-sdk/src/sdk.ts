@@ -16,10 +16,11 @@ export class ChatbotSDK {
       options.apiBase,
       options.apiKey,
       options.productId,
-      options.timeout
+      options.timeout || 5000,
+      options.retries || 3
     );
 
-    this.middleware = new SDKMiddleware();
+    this.middleware = new SDKMiddleware(this);
   }
 
   private validateOptions(options: SDKOptions) {
@@ -35,8 +36,14 @@ export class ChatbotSDK {
     if (typeof options.productId !== "string" || !options.productId.trim()) {
       throw new SDKConfigurationError("productId", "must be a non-empty product tenant ID");
     }
+    if (typeof options.signingSecret !== "string" || !options.signingSecret.trim()) {
+      throw new SDKConfigurationError("signingSecret", "must be a non-empty cryptographic signing secret string");
+    }
     if (options.timeout !== undefined && (typeof options.timeout !== "number" || options.timeout <= 0)) {
       throw new SDKConfigurationError("timeout", "must be a positive number of milliseconds");
+    }
+    if (options.retries !== undefined && (typeof options.retries !== "number" || options.retries < 0)) {
+      throw new SDKConfigurationError("retries", "must be a non-negative number of retry counts");
     }
   }
 
@@ -48,9 +55,16 @@ export class ChatbotSDK {
   }
 
   /**
-   * Return middleware stubs for host frameworks integrations
+   * Return middleware handlers for host frameworks integrations
    */
   public getMiddleware(): SDKMiddleware {
     return this.middleware;
+  }
+
+  /**
+   * Get active SDK configuration options
+   */
+  public getOptions(): SDKOptions {
+    return this.options;
   }
 }

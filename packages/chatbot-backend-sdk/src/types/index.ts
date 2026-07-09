@@ -4,7 +4,9 @@ export interface SDKOptions {
   apiBase: string;
   apiKey: string;
   productId: string;
+  signingSecret: string;
   timeout?: number;
+  retries?: number;
   environment?: string;
 }
 
@@ -21,8 +23,21 @@ export interface SDKResponse<T = any> {
   error?: string;
 }
 
+export interface SignatureHeaders {
+  'X-Envoy-Signature': string;
+  'X-Envoy-Timestamp': string;
+  'X-Envoy-Nonce': string;
+  'X-Envoy-API-Key': string;
+  'X-Envoy-Product-ID': string;
+}
+
+export interface SignatureProvider {
+  sign(payload: string): SignatureHeaders;
+  verify(payload: string, headers: Record<string, string>): boolean;
+}
+
 export interface ClientContract {
-  queryChatbot(botId: string, prompt: string): Promise<SDKResponse<ChatMessage>>;
+  queryChatbot(botId: string, prompt: string, stream?: boolean): Promise<any>;
   getBranding(productId: string): Promise<SDKResponse<any>>;
   syncDocuments(botId: string): Promise<SDKResponse<{ job_id: string }>>;
 }

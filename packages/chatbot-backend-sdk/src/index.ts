@@ -14,6 +14,7 @@ export function createChatbotSDK(options: SDKOptions): ChatbotSDK {
 export { ChatbotSDK } from './sdk';
 export { SDKClient } from './client';
 export { SDKMiddleware } from './middleware';
+export { HMACSignatureProvider } from './utils/crypto';
 
 export * from './types';
 export * from './errors';
