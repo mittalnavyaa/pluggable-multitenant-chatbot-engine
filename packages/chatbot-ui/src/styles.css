@@ -5,10 +5,43 @@
 :host {
   display: block;
   box-sizing: border-box;
+
+  /* CSS Variables default theme fallbacks */
+  --envoy-primary: #2563eb;
+  --envoy-secondary: #475569;
+  --envoy-accent: #10b981;
+  --envoy-bg: #f8fafc;
+  --envoy-surface: #ffffff;
+  --envoy-border: #e2e8f0;
+  --envoy-text: #0f172a;
+  --envoy-muted: #64748b;
+  --envoy-success: #16a34a;
+  --envoy-warning: #d97706;
+  --envoy-error: #dc2626;
+
+  --envoy-font-family: Inter, system-ui, sans-serif;
+  --envoy-font-size: 14px;
+  --envoy-heading-weight: 600;
+  --envoy-body-weight: 400;
+  --envoy-msg-text-size: 13px;
+  --envoy-btn-text-size: 13px;
+
+  --envoy-chat-width: 380px;
+  --envoy-chat-height: 520px;
+  --envoy-border-radius: 12px;
+  --envoy-padding: 16px;
+  --envoy-spacing: 12px;
+  --envoy-bubble-radius: 8px;
 }
 
 :host *, :host *::before, :host *::after {
   box-sizing: border-box;
+}
+
+/* Chat container overrides */
+.envoy-theme-font {
+  font-family: var(--envoy-font-family) !important;
+  font-size: var(--envoy-font-size) !important;
 }
 
 /* Scrollbar styles for the message area */
@@ -21,10 +54,6 @@
 }
 
 .envoy-messages-container::-webkit-scrollbar-thumb {
-  background: var(--lt-border, #cbd5e1);
+  background: var(--envoy-border);
   border-radius: 4px;
-}
-
-.dark .envoy-messages-container::-webkit-scrollbar-thumb {
-  background: var(--dk-border, #475569);
 }

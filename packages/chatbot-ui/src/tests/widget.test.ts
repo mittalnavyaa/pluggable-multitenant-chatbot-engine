@@ -1,12 +1,14 @@
 // packages/chatbot-ui/src/tests/widget.test.ts
 
 import { EnvoyChatbot } from '../index';
+import { BrandingValidator } from '../branding/branding-validator';
+import { CSSVariableMapper } from '../branding/css-variable-mapper';
+import { DEFAULT_ENVOY_THEME } from '../branding/default-theme';
 
 describe('EnvoyChatbot Web Component', () => {
   let element: EnvoyChatbot;
 
   beforeEach(() => {
-    // Create new element instance before each test
     element = document.createElement('envoy-chatbot') as EnvoyChatbot;
     element.setAttribute('data-bot-id', 'test-bot-id');
     element.setAttribute('data-api-base', 'http://localhost:8000');
@@ -14,7 +16,6 @@ describe('EnvoyChatbot Web Component', () => {
   });
 
   afterEach(() => {
-    // Cleanup elements
     if (element && element.parentNode) {
       element.parentNode.removeChild(element);
     }
@@ -75,7 +76,53 @@ describe('EnvoyChatbot Web Component', () => {
     
     const shadow = element.shadowRoot;
     const messages = shadow?.querySelector('#envoy-messages');
-    // Should contain only 1 message (the initial welcome message)
     expect(messages?.children.length).toBe(1);
+  });
+
+  // ── Branding Ingestion & Theme Validation Tests ──────────────────
+  
+  test('BrandingValidator should validate valid and fallback on invalid color formats', () => {
+    const raw = {
+      colors: {
+        primaryColor: '#ff0000',
+        secondaryColor: 'invalid-color-string',
+        accentColor: 'rgb(0, 255, 0)',
+        textColor: '#000000'
+      }
+    };
+    const validated = BrandingValidator.validate(raw);
+    expect(validated.colors.primaryColor).toBe('#ff0000');
+    expect(validated.colors.secondaryColor).toBe(DEFAULT_ENVOY_THEME.colors.secondaryColor); // fallback
+    expect(validated.colors.accentColor).toBe('rgb(0, 255, 0)');
+    expect(validated.colors.textColor).toBe('#000000');
+  });
+
+  test('BrandingValidator should default missing configuration categories', () => {
+    const raw = {};
+    const validated = BrandingValidator.validate(raw);
+    expect(validated.colors.primaryColor).toBe(DEFAULT_ENVOY_THEME.colors.primaryColor);
+    expect(validated.layout.chatWidth).toBe(DEFAULT_ENVOY_THEME.layout.chatWidth);
+    expect(validated.featureFlags.fileUpload).toBe(DEFAULT_ENVOY_THEME.featureFlags.fileUpload);
+  });
+
+  test('CSSVariableMapper should map layout sizes to CSS variables', () => {
+    const config = {
+      ...DEFAULT_ENVOY_THEME,
+      layout: {
+        chatWidth: '400px',
+        chatHeight: '600px',
+        borderRadius: '20px'
+      }
+    };
+    const variables = CSSVariableMapper.mapToCSS(config);
+    expect(variables['--envoy-chat-width']).toBe('400px');
+    expect(variables['--envoy-chat-height']).toBe('600px');
+    expect(variables['--envoy-border-radius']).toBe('20px');
+  });
+
+  test('should render/hide upload and voice buttons based on feature flags', () => {
+    // By default, voiceInput is disabled in DEFAULT_ENVOY_THEME
+    const voiceBtn = element.shadowRoot?.querySelector('#envoy-voice-btn');
+    expect(voiceBtn?.classList.contains('hidden')).toBe(true);
   });
 });
