@@ -271,43 +271,43 @@ def process_chunking(self, payload: dict):
 
         # 3. Perform Chunking
         logger.info("Chunking document...")
-        chunking_service = ChunkingService()
-        
         bot = db.query(Bot).filter(Bot.id == doc.bot_id).first()
         product_id = str(bot.product_id) if bot else "default-product"
 
-        chunks = chunking_service.chunk_markdown_advanced(
+        from chunking.config import ChunkingConfig
+        from chunking.pipeline import SemanticChunkingPipeline
+
+        chunk_config = ChunkingConfig(
+            chunk_size=1000 // 4,
+            overlap_size=200 // 4
+        )
+        chunk_pipeline = SemanticChunkingPipeline(config=chunk_config)
+        chunks = chunk_pipeline.run(
             markdown_text=cleaned_markdown,
             platform_id=product_id,
             document_id=document_id,
             job_id=payload.get("job_id", document_id),
             source_filename=payload.get("metadata", {}).get("filename", doc.filename),
-            correlation_id=payload.get("correlation_id", "")
+            correlation_id=payload.get("correlation_id", ""),
+            bot_id=str(doc.bot_id) if doc.bot_id else None
         )
         logger.info(f"Chunking complete. Created {len(chunks)} chunks.")
 
-        # 4. Generate Embeddings
+        # 4. Generate Embeddings & Upload to Qdrant via the Ingestion Pipeline
         _update_status(document_id, "EMBEDDING", db)
-        logger.info("Generating embeddings...")
-        embedding_service = EmbeddingService()
-        embeddings = [embedding_service.generate_embedding(c["text"]) for c in chunks]
-        logger.info("Embeddings generation complete.")
-
-        # 5. Upload vectors to Qdrant
-        _update_status(document_id, "STORING", db)
-        logger.info("Uploading vectors to Qdrant...")
-        bot = db.query(Bot).filter(Bot.id == doc.bot_id).first()
-        product_id = str(bot.product_id)
         
-        upsert_document_chunks(
-            product_id=product_id,
-            bot_id=bot.id,
-            document_id=uuid.UUID(document_id),
-            source_filename=doc.filename,
+        from embedding.config import EmbeddingConfig
+        from embedding.ingestion_pipeline import EmbeddingIngestionPipeline
+
+        embed_config = EmbeddingConfig.from_env()
+        embedding_pipeline = EmbeddingIngestionPipeline(config=embed_config)
+        
+        _update_status(document_id, "STORING", db)
+        ingest_result = embedding_pipeline.run(
             chunks=chunks,
-            embeddings=embeddings
+            source_filename=payload.get("metadata", {}).get("filename", doc.filename)
         )
-        logger.info("Vectors uploaded.")
+        logger.info(f"Ingestion pipeline completed successfully: {ingest_result}")
 
         # 6. Update status to COMPLETED
         _update_status(document_id, "COMPLETED", db)

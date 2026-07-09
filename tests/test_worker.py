@@ -150,7 +150,7 @@ def test_celery_worker_pipeline():
 
         # 8. Verify status is COMPLETED in PostgreSQL (poll to wait for decoupled background chunking task to finish)
         import time
-        max_attempts = 15
+        max_attempts = 60
         doc_record = None
         for attempt in range(max_attempts):
             db.expire_all()

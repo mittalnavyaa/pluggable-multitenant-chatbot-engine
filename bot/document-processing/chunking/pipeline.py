@@ -31,7 +31,8 @@ class SemanticChunkingPipeline:
         document_id: str,
         job_id: str,
         source_filename: str,
-        correlation_id: str = ""
+        correlation_id: str = "",
+        bot_id: str = None
     ) -> list[SemanticChunk]:
         """Runs the multi-stage document parsing and semantic splitting pipeline."""
         logger.info(f"Starting semantic chunking pipeline for document: {document_id}")
@@ -109,6 +110,8 @@ class SemanticChunkingPipeline:
                     character_count=char_count,
                     correlation_id=correlation_id
                 )
+                if bot_id:
+                    meta["bot_id"] = bot_id
 
                 chunk = SemanticChunk(
                     text=txt,
