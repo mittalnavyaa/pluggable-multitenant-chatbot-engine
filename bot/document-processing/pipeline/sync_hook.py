@@ -132,6 +132,7 @@ class PipelineSyncHook:
             
             logger.info(f"Dispatching process_chunking Celery task for document {document_id}")
             process_chunking.delay(payload.__dict__)
+            self.redis_client.delete(lock_key)
             return True
         except Exception as e:
             logger.error(f"Failed to dispatch downstream chunking task: {e}")

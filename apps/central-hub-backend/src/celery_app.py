@@ -183,6 +183,7 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
             logger.info(f"Cleaned Markdown uploaded to MinIO: {cleaned_storage_path}")
         except Exception as e:
             logger.error(f"Failed to upload cleaned Markdown to MinIO: {e}")
+            raise RuntimeError(f"Failed to upload cleaned Markdown to MinIO: {e}") from e
 
         # --- HANDOFF VIA PIPELINE SYNCHRONIZATION HOOK ---
         from pipeline.sync_hook import PipelineSyncHook

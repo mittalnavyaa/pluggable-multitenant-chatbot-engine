@@ -81,7 +81,11 @@ def create_upload_job(file, bot_id: uuid.UUID, bot_name: str, db: Session):
                     detail="Document with this hash already exists (duplicate upload)."
                 )
 
-    # 5. Enqueue Celery task
+    # 5. Immediately update processing_status to 'QUEUED'
+    doc_entry.processing_status = "QUEUED"
+    db.commit()
+
+    # 6. Enqueue Celery task
     try:
         process_document.delay(
             document_id=str(doc_entry.id),
@@ -89,14 +93,10 @@ def create_upload_job(file, bot_id: uuid.UUID, bot_name: str, db: Session):
             storage_path=object_name
         )
     except Exception as e:
-        # If task queuing fails, keep status as PENDING or log it.
-        # Requirements say: "After inserting the metadata, enqueue a Celery task... Immediately update processing_status to 'QUEUED'"
-        # We will attempt to update it to QUEUED anyway or handle Celery error.
+        # Rollback status to PENDING if queuing fails
+        doc_entry.processing_status = "PENDING"
+        db.commit()
         raise HTTPException(status_code=500, detail=f"Failed to queue processing job: {str(e)}")
-
-    # 6. Immediately update processing_status to 'QUEUED'
-    doc_entry.processing_status = "QUEUED"
-    db.commit()
 
     # 7. Return the response
     return {
@@ -131,10 +131,26 @@ def get_job_status(job_id: str, db: Session):
         status = "uploading"
         progress = 20
         current_step = "Downloading File"
+    elif db_status == "EXTRACTING":
+        status = "extracting_text"
+        progress = 40
+        current_step = "Extracting Text"
     elif db_status == "CLEANING":
         status = "ai_formatting"
         progress = 60
         current_step = "AI Formatting"
+    elif db_status == "VALIDATING":
+        status = "ai_formatting"
+        progress = 70
+        current_step = "Validating Content"
+    elif db_status == "VALIDATION_FAILED":
+        status = "failed"
+        progress = 100
+        current_step = "Validation Failed"
+    elif db_status == "READY_FOR_CHUNKING":
+        status = "generating_markdown"
+        progress = 80
+        current_step = "Ready for Chunking"
     elif db_status == "CHUNKING":
         status = "generating_markdown"
         progress = 85
@@ -151,7 +167,7 @@ def get_job_status(job_id: str, db: Session):
         status = "ready"
         progress = 100
         current_step = "Processing Complete"
-    elif db_status == "FAILED":
+    elif db_status in ("FAILED", "VALIDATION_FAILED"):
         status = "failed"
         progress = 100
         current_step = "Processing Failed"
@@ -170,7 +186,7 @@ def get_job_status(job_id: str, db: Session):
     # Determine the current active index in the timeline
     active_step = status
     if status == "failed":
-        if db_status == "CLEANING":
+        if db_status in ("CLEANING", "VALIDATING", "VALIDATION_FAILED"):
             active_step = "ai_formatting"
         elif db_status in ("CHUNKING", "EMBEDDING", "STORING"):
             active_step = "generating_markdown"
@@ -207,7 +223,7 @@ def get_job_status(job_id: str, db: Session):
         
     # Check if a validation failure occurred or if there is an error message
     error_message = None
-    if db_status == "FAILED":
+    if db_status in ("FAILED", "VALIDATION_FAILED"):
         error_message = "Ingestion process failed. Check worker logs."
         try:
             import os
