@@ -1,54 +1,50 @@
 import re
+from chunking.pipeline import SemanticChunkingPipeline
+from chunking.config import ChunkingConfig
 
 class ChunkingService:
     """Service that handles semantic splitting of Markdown text into chunks."""
 
     def __init__(self, chunk_size: int = 1000, chunk_overlap: int = 200):
-        self.chunk_size = chunk_size
-        self.chunk_overlap = chunk_overlap
+        # Convert character sizes to approximate token budgets (1 token ≈ 4 characters)
+        self.chunk_size = chunk_size // 4
+        self.chunk_overlap = chunk_overlap // 4
 
     def chunk_markdown(self, markdown_text: str) -> list[dict]:
         """
-        Splits Markdown text by paragraph transitions and returns a list of
-        structured dictionaries with chunks and page numbers.
+        Splits Markdown text using default pipeline parameters for backwards compatibility.
         """
-        paragraphs = re.split(r'\n\n+', markdown_text)
-        chunks = []
-        current_chunk = []
-        current_length = 0
-        page_number = 1
+        return self.chunk_markdown_advanced(
+            markdown_text=markdown_text,
+            platform_id="default-platform",
+            document_id="00000000-0000-0000-0000-000000000000",
+            job_id="00000000-0000-0000-0000-000000000000",
+            source_filename="document.txt"
+        )
 
-        for para in paragraphs:
-            # Dynamically look for any page markers inserted during extraction
-            page_match = re.search(r'(?:Page|page)\s+(\d+)', para)
-            if page_match:
-                page_number = int(page_match.group(1))
-
-            para_len = len(para)
-            if current_length + para_len > self.chunk_size and current_chunk:
-                chunks.append({
-                    "text": "\n\n".join(current_chunk),
-                    "page_number": page_number
-                })
-                # Retain sliding window overlap
-                overlap_len = 0
-                new_chunk = []
-                for p in reversed(current_chunk):
-                    if overlap_len + len(p) < self.chunk_overlap:
-                        new_chunk.insert(0, p)
-                        overlap_len += len(p)
-                    else:
-                        break
-                current_chunk = new_chunk
-                current_length = sum(len(p) for p in current_chunk)
-
-            current_chunk.append(para)
-            current_length += para_len
-
-        if current_chunk:
-            chunks.append({
-                "text": "\n\n".join(current_chunk),
-                "page_number": page_number
-            })
-
-        return chunks
+    def chunk_markdown_advanced(
+        self,
+        markdown_text: str,
+        platform_id: str,
+        document_id: str,
+        job_id: str,
+        source_filename: str,
+        correlation_id: str = ""
+    ) -> list[dict]:
+        """
+        Splits Markdown text using hierarchical structural and semantic chunking.
+        """
+        config = ChunkingConfig(
+            chunk_size=self.chunk_size,
+            overlap_size=self.chunk_overlap
+        )
+        pipeline = SemanticChunkingPipeline(config=config)
+        chunks = pipeline.run(
+            markdown_text=markdown_text,
+            platform_id=platform_id,
+            document_id=document_id,
+            job_id=job_id,
+            source_filename=source_filename,
+            correlation_id=correlation_id
+        )
+        return [chunk.to_dict() for chunk in chunks]

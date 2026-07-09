@@ -14,3 +14,4 @@ qdrant-client
 pdfplumber
 PyPDF2
 python-docx
+tiktoken==0.8.0

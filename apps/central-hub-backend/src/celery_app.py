@@ -272,7 +272,18 @@ def process_chunking(self, payload: dict):
         # 3. Perform Chunking
         logger.info("Chunking document...")
         chunking_service = ChunkingService()
-        chunks = chunking_service.chunk_markdown(cleaned_markdown)
+        
+        bot = db.query(Bot).filter(Bot.id == doc.bot_id).first()
+        product_id = str(bot.product_id) if bot else "default-product"
+
+        chunks = chunking_service.chunk_markdown_advanced(
+            markdown_text=cleaned_markdown,
+            platform_id=product_id,
+            document_id=document_id,
+            job_id=payload.get("job_id", document_id),
+            source_filename=payload.get("metadata", {}).get("filename", doc.filename),
+            correlation_id=payload.get("correlation_id", "")
+        )
         logger.info(f"Chunking complete. Created {len(chunks)} chunks.")
 
         # 4. Generate Embeddings
