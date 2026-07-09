@@ -18,11 +18,11 @@ export class SDKClient implements ClientContract {
   /**
    * Forwards a chat query to the core FastAPI backend, supporting both JSON and streaming response options.
    */
-  public async queryChatbot(botId: string, prompt: string, stream = false): Promise<any> {
+  public async queryChatbot(botId: string, prompt: string, stream = false, extraHeaders?: Record<string, string>): Promise<any> {
     const payload = JSON.stringify({ bot_id: botId, prompt, stream });
     const targetUrl = `${this.apiBase}/api/v1/chat/stream`;
     
-    return this.requestWithRetry('POST', targetUrl, payload, stream);
+    return this.requestWithRetry('POST', targetUrl, payload, stream, extraHeaders);
   }
 
   /**
@@ -50,10 +50,11 @@ export class SDKClient implements ClientContract {
     targetUrl: string,
     body?: string,
     streamResponse = false,
+    extraHeaders?: Record<string, string>,
     attempt = 1
   ): Promise<any> {
     try {
-      return await this.dispatchRequest(method, targetUrl, body, streamResponse);
+      return await this.dispatchRequest(method, targetUrl, body, streamResponse, extraHeaders);
     } catch (err) {
       const isTransient = err instanceof BackendUnavailableError || 
                           (err instanceof SDKNetworkError && err.message.includes('Status 5')); // 5xx server errors
@@ -62,7 +63,7 @@ export class SDKClient implements ClientContract {
         const delay = Math.pow(2, attempt) * 100; // Exponential backoff: 200ms, 400ms, 800ms
         console.warn(`[envoy-client] Transient error on attempt ${attempt}. Retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
-        return this.requestWithRetry(method, targetUrl, body, streamResponse, attempt + 1);
+        return this.requestWithRetry(method, targetUrl, body, streamResponse, extraHeaders, attempt + 1);
       }
       throw err;
     }
@@ -72,7 +73,8 @@ export class SDKClient implements ClientContract {
     method: 'GET' | 'POST',
     targetUrl: string,
     body?: string,
-    streamResponse = false
+    streamResponse = false,
+    extraHeaders?: Record<string, string>
   ): Promise<any> {
     return new Promise((resolve, reject) => {
       const url = new URL(targetUrl);
@@ -82,7 +84,8 @@ export class SDKClient implements ClientContract {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'X-Envoy-API-Key': this.apiKey,
-        'X-Envoy-Product-ID': this.productId
+        'X-Envoy-Product-ID': this.productId,
+        ...extraHeaders
       };
 
       if (body) {

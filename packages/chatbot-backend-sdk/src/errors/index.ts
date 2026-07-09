@@ -4,7 +4,9 @@ export class SDKError extends Error {
   constructor(message: string) {
     super(message);
     this.name = this.constructor.name;
-    Error.captureStackTrace(this, this.constructor);
+    if (typeof Error.captureStackTrace === 'function') {
+      Error.captureStackTrace(this, this.constructor);
+    }
   }
 }
 

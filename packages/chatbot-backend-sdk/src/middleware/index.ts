@@ -72,7 +72,7 @@ export class SDKMiddleware implements MiddlewareContract {
       // 3. Dispatch call to client proxy
       console.log(`[envoy-proxy] Forwarding request for bot ${botId} (Stream: ${isStream})`);
       
-      const response = await client.queryChatbot(botId, prompt, isStream);
+      const response = await client.queryChatbot(botId, prompt, isStream, signatureHeaders as any);
 
       // 4. Handle response transfer formats
       if (isStream) {
