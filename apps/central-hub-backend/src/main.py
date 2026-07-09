@@ -6,6 +6,7 @@ from src.routers.upload import router as upload_router
 from src.routers.bots import router as bots_router
 from src.routers.products import router as products_router
 from src.routers.dashboard import router as dashboard_router
+from src.routers.analytics import router as analytics_router
 from src.services.storage_service import initialize_bucket
 from src.services.qdrant_service import ensure_collection_initialized
 
@@ -25,6 +26,7 @@ app.include_router(upload_router)
 app.include_router(bots_router)
 app.include_router(products_router)
 app.include_router(dashboard_router)
+app.include_router(analytics_router)
 
 @app.on_event("startup")
 def startup():

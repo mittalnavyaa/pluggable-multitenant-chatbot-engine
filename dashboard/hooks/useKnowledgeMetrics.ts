@@ -1,13 +1,19 @@
-// dashboard/hooks/useKnowledgeMetrics.ts
-
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { fetchLiveDocuments, type LiveDocumentInfo, type KnowledgeSummaryMetrics } from '../services/knowledgeService';
+import {
+  fetchLiveDocuments,
+  fetchKnowledgeMetrics,
+  fetchActivityFeed,
+  type LiveDocumentInfo,
+  type KnowledgeSummaryMetrics
+} from '../services/knowledgeService';
 import { fetchProducts, type ProductInfo } from '../services/productService';
 import { usePolling } from './usePolling';
 
 export function useKnowledgeMetrics() {
   const [documents, setDocuments] = useState<LiveDocumentInfo[]>([]);
   const [products, setProducts] = useState<ProductInfo[]>([]);
+  const [backendSummary, setBackendSummary] = useState<KnowledgeSummaryMetrics | null>(null);
+  const [backendActivity, setBackendActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,12 +40,20 @@ export function useKnowledgeMetrics() {
     }
     setError(null);
     try {
-      const [docsData, prodsData] = await Promise.all([
+      const [docsData, prodsData, metricsData, activityData] = await Promise.all([
         fetchLiveDocuments(),
-        fetchProducts()
+        fetchProducts(),
+        fetchKnowledgeMetrics().catch(() => null),
+        fetchActivityFeed().catch(() => [])
       ]);
       setDocuments(docsData);
       setProducts(prodsData);
+      if (metricsData) {
+        setBackendSummary(metricsData);
+      }
+      if (activityData && activityData.length > 0) {
+        setBackendActivity(activityData);
+      }
       setLastSync(new Date().toLocaleTimeString());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred while loading knowledge metrics.');
@@ -102,23 +116,26 @@ export function useKnowledgeMetrics() {
       completedDocuments: completed,
       failedDocuments: failed,
       processingDocuments: processing,
-      totalChunks,
-      totalVectors,
-      averageChunksPerDoc: averageChunks,
-      totalStorageBytes: totalStorage,
-      averageDocSizeBytes: avgDocSize,
-      averageChunkSizeBytes: avgChunkSize,
-      activeDocuments: completed,
-      validationSuccessRate,
-      vectorizationSuccessRate,
-      averageProcessingTimeMs: avgProcTime,
-      averageEmbeddingTimeMs: Math.round(avgProcTime * 0.4), // Embeddings take ~40% of time
-      queueLength: processing
+      totalChunks: backendSummary ? backendSummary.totalChunks : totalChunks,
+      totalVectors: backendSummary ? backendSummary.totalVectors : totalVectors,
+      averageChunksPerDoc: backendSummary ? backendSummary.averageChunksPerDoc : averageChunks,
+      totalStorageBytes: backendSummary ? backendSummary.totalStorageBytes : totalStorage,
+      averageDocSizeBytes: backendSummary ? backendSummary.averageDocSizeBytes : avgDocSize,
+      averageChunkSizeBytes: backendSummary ? backendSummary.averageChunkSizeBytes : avgChunkSize,
+      activeDocuments: backendSummary ? backendSummary.activeDocuments : completed,
+      validationSuccessRate: backendSummary ? backendSummary.validationSuccessRate : validationSuccessRate,
+      vectorizationSuccessRate: backendSummary ? backendSummary.vectorizationSuccessRate : vectorizationSuccessRate,
+      averageProcessingTimeMs: backendSummary ? backendSummary.averageProcessingTimeMs : avgProcTime,
+      averageEmbeddingTimeMs: backendSummary ? backendSummary.averageEmbeddingTimeMs : Math.round(avgProcTime * 0.4),
+      queueLength: backendSummary ? backendSummary.queueLength : processing
     };
-  }, [documents]);
+  }, [documents, backendSummary]);
 
   // Derived Activity Feed based on documents list state
   const activityFeed = useMemo(() => {
+    if (backendActivity && backendActivity.length > 0) {
+      return backendActivity;
+    }
     const feed: { id: string; type: 'ready' | 'failed' | 'active'; text: string; time: string; docName: string; product: string }[] = [];
     
     // Sort documents by date to build feed chronologically
@@ -157,7 +174,7 @@ export function useKnowledgeMetrics() {
     });
 
     return feed.slice(0, 10); // Return top 10 activities
-  }, [documents]);
+  }, [documents, backendActivity]);
 
   // Filter & Sort Logic
   const processedDocuments = useMemo(() => {

@@ -158,6 +158,65 @@ def list_documents(
     return response
 
 
+class SyncTriggerRequest(BaseModel):
+    document_ids: Optional[List[str]] = None
+
+class SyncTriggerResponse(BaseModel):
+    job_id: str
+    status: str
+    synchronized_count: int
+
+@router.post("/sync", response_model=SyncTriggerResponse)
+def trigger_synchronization(payload: Optional[SyncTriggerRequest] = None, db: Session = Depends(get_db)):
+    query = db.query(DocumentRegistry).filter(
+        DocumentRegistry.processing_status.in_(["READY_FOR_CHUNKING", "SANITIZED"])
+    )
+    
+    if payload and payload.document_ids:
+        uuids = []
+        for d_id in payload.document_ids:
+            try:
+                uuids.append(UUID(d_id))
+            except ValueError:
+                pass
+        if uuids:
+            query = query.filter(DocumentRegistry.id.in_(uuids))
+            
+    docs = query.all()
+    
+    import time
+    from src.celery_app import process_chunking
+    
+    synchronized_count = 0
+    for doc in docs:
+        cleaned_storage_path = f"{os.path.splitext(doc.storage_path)[0]}_cleaned.md"
+        
+        task_payload = {
+            "job_id": str(doc.id),
+            "bot_id": str(doc.bot_id),
+            "document_id": str(doc.id),
+            "storage_path": doc.storage_path,
+            "cleaned_storage_path": cleaned_storage_path,
+            "validation_status": "Passed",
+            "validation_score": 1.0,
+            "timestamp": str(int(time.time())),
+            "correlation_id": str(uuid.uuid4()),
+            "metadata": {
+                "event_name": "pipeline_sync",
+                "queue_name": "sync_queue",
+                "filename": doc.filename
+            }
+        }
+        process_chunking.delay(task_payload)
+        synchronized_count += 1
+        
+    return SyncTriggerResponse(
+        job_id=str(uuid.uuid4()),
+        status="QUEUED",
+        synchronized_count=synchronized_count
+    )
+
+
 from fastapi.responses import StreamingResponse
 
 @router.get("/{job_id}/download")
