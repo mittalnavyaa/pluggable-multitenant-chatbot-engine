@@ -1,0 +1,33 @@
+# =============================================================
+# pipeline_testing/.gitignore
+# Generated outputs — re-created on every run_tests.py run.
+# Never commit these; they are local test artefacts only.
+# =============================================================
+
+# ----- Runtime output files ----------------------------------
+outputs/pipeline_test_report.json
+outputs/evaluation_dataset.json
+outputs/evaluation_dataset_summary.csv
+
+# Keep the outputs/ directory itself in the repo
+!outputs/.gitkeep
+
+# ----- Generated sample documents ---------------------------
+# All .md files under sample_documents/ are auto-generated.
+# The directory is tracked via its own .gitkeep.
+sample_documents/*.md
+!sample_documents/.gitkeep
+
+# ----- Python cache ------------------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*$py.class
+
+# ----- Misc --------------------------------------------------
+*.log
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
