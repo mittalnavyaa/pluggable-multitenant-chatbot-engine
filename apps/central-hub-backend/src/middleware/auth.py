@@ -11,6 +11,21 @@ async def authenticate_request(request: Request, call_next):
     if path.startswith(("/api/v1/bots", "/api/v1/documents", "/api/v1/dashboard")):
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
+            # Check if this is a request from the local React admin dashboard
+            referer = request.headers.get("referer", "")
+            origin = request.headers.get("origin", "")
+            
+            is_local = (
+                "localhost" in referer or "127.0.0.1" in referer or
+                "localhost" in origin or "127.0.0.1" in origin
+            )
+            
+            if is_local and not auth_header:
+                request.state.product_id = None
+                request.state.product_db_id = None
+                response = await call_next(request)
+                return response
+
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Missing or invalid Authorization header. Expected Bearer <token>."}
