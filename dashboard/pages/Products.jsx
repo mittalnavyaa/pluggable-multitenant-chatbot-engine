@@ -9,6 +9,7 @@ export function Products({ products, onViewDetails, onRefresh }) {
   const [createProductOpen, setCreateProductOpen] = useState(false);
   const [newProdName, setNewProdName] = useState('');
   const [newProdId, setNewProdId] = useState('');
+  const [createError, setCreateError] = useState('');
 
   const filtered = products.filter((p) =>
     p.name.toLowerCase().includes(query.toLowerCase()) ||
@@ -18,6 +19,7 @@ export function Products({ products, onViewDetails, onRefresh }) {
   const handleCreateProductSubmit = async (e) => {
     e.preventDefault();
     if (!newProdName.trim() || !newProdId.trim()) return;
+    setCreateError('');
     try {
       await createProduct(newProdId.trim().toLowerCase(), newProdName.trim());
       onRefresh?.();
@@ -26,6 +28,7 @@ export function Products({ products, onViewDetails, onRefresh }) {
       setNewProdId('');
     } catch (err) {
       console.error('Failed to create product:', err);
+      setCreateError(err?.message || 'Failed to create product.');
     }
   };
 
@@ -109,6 +112,11 @@ export function Products({ products, onViewDetails, onRefresh }) {
                     color: 'var(--color-text)'
                   }}
                 />
+                {createError ? (
+                  <div style={{ color: '#B91C1C', fontSize: '0.875rem', marginTop: '4px' }}>
+                    {createError}
+                  </div>
+                ) : null}
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
                 <button className="upload-link-button" type="button" onClick={() => setCreateProductOpen(false)}>Cancel</button>

@@ -74,7 +74,17 @@ export async function createProduct(productId: string, name: string): Promise<Pr
     })
   });
   if (!response.ok) {
-    throw new Error(`Failed to create product: HTTP ${response.status}`);
+    const errorText = await response.text();
+    let detail = `HTTP ${response.status}`;
+    try {
+      const errorJson = JSON.parse(errorText);
+      detail = errorJson.detail || errorJson.error || errorText || detail;
+    } catch {
+      if (errorText) {
+        detail = errorText;
+      }
+    }
+    throw new Error(`Failed to create product: ${detail}`);
   }
   const p = await response.json();
   return p;
