@@ -1,11 +1,11 @@
-﻿"""Tests for prompt template quality constraints."""
+"""Tests for prompt template quality constraints."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 
-PROMPTS_DIR = Path("prompts")
+PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
 
 def test_system_prompt_enforces_no_hallucination() -> None:

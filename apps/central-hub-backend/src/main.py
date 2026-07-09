@@ -31,6 +31,17 @@ def startup():
     initialize_bucket()
     ensure_collection_initialized()
 
+    # Create all registered metadata tables (e.g. document_processing_metrics)
+    from src.database.database import engine
+    from src.database.base import Base
+    from src.models.analytics import DocumentProcessingMetrics
+    from src.models.internal_product import InternalProduct
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        import logging
+        logging.getLogger("uvicorn").error(f"Error creating metadata tables on startup: {e}")
+
     # Run dynamic schema migrations on startup to clean up local postgres schemas
     from sqlalchemy import text
     from src.database.database import SessionLocal

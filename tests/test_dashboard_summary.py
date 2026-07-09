@@ -16,7 +16,7 @@ from sqlalchemy import text
 from src.main import app
 from src.database.database import SessionLocal
 
-client = TestClient(app)
+client = TestClient(app, headers={"origin": "http://localhost:3000"})
 
 def test_dashboard_summary_endpoint():
     db = SessionLocal()

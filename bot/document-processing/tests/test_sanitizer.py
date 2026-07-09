@@ -1,4 +1,4 @@
-﻿"""Tests for the Phase 2 Markdown sanitization pipeline."""
+"""Tests for the Phase 2 Markdown sanitization pipeline."""
 
 from __future__ import annotations
 
@@ -65,10 +65,12 @@ def _result(raw_text: str, file_name: str = "employee_handbook.pdf") -> Extracti
 
 
 def _sanitizer(tmp_path: Path, provider: BaseLLMProvider) -> MarkdownSanitizer:
+    current_file_dir = Path(__file__).parent
+    prompts_dir = current_file_dir.parent / "prompts"
     return MarkdownSanitizer(
         provider=provider,
         writer=MarkdownWriter(tmp_path),
-        prompts_dir="prompts",
+        prompts_dir=prompts_dir,
     )
 
 

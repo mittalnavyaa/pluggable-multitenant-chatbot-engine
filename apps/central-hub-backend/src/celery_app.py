@@ -45,6 +45,16 @@ from pipeline.markdown_writer import MarkdownWriter
 from src.services.chunking_service import ChunkingService
 from src.services.embedding_service import EmbeddingService
 from src.services.qdrant_service import upsert_document_chunks
+from src.services.metrics_service import MetricsService
+from src.database.database import engine
+from src.database.base import Base
+from src.models.analytics import DocumentProcessingMetrics
+from src.models.internal_product import InternalProduct
+
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    pass
 
 logger = logging.getLogger("celery_worker")
 if not logger.handlers:
@@ -97,14 +107,20 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
             
         product_id = str(bot.product_id)
         
+        # Initialize metrics tracking for this document
+        metrics_service = MetricsService(db)
+        metrics_service.initialize_metrics(document_id=document_id, bot_id=bot_id, product_id=product_id)
+        
         # Step 2: Update status to DOWNLOADING and retrieve file from MinIO
         _update_status(document_id, "DOWNLOADING", db)
+        metrics_service.update_status(document_id, "DOWNLOADING")
         logger.info("Downloading document...")
         temp_path = download_file_to_temp(storage_path)
         logger.info("Document downloaded.")
         
         # Step 3 & 4: Update status to EXTRACTING and parse raw content
         _update_status(document_id, "EXTRACTING", db)
+        metrics_service.update_status(document_id, "EXTRACTING")
         logger.info("Extracting text...")
         extractor = ExtractorFactory.create(temp_path)
         extraction_result = extractor.extract(temp_path)
@@ -117,6 +133,7 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
         
         # Step 5: Update status to CLEANING and sanitize layout noise to Markdown
         _update_status(document_id, "CLEANING", db)
+        metrics_service.update_status(document_id, "CLEANING")
         logger.info("Sanitization Started")
         prompts_dir = os.path.join(doc_proc_path, "prompts")
         output_dir = os.path.join(doc_proc_path, "output")
@@ -165,6 +182,7 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
 
         if not val_result.success:
             _update_status(document_id, "VALIDATION_FAILED", db)
+            metrics_service.update_status(document_id, "VALIDATION_FAILED")
             err_msg = ", ".join(val_result.failure_reasons) or "Validation failed"
             raise RuntimeError(f"Sanitization validation failed: {err_msg}")
 
@@ -220,6 +238,8 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
         else:
             logger.error(f"Failed: Maximum retries exhausted for job {document_id}")
             _update_status(document_id, "FAILED", db)
+            metrics_service = MetricsService(db)
+            metrics_service.mark_failed(document_id)
             try:
                 logger.info(f"Permanent failure. Cleaning up storage object: {storage_path}")
                 minio_client.remove_object(BUCKET_NAME, storage_path)
@@ -256,11 +276,14 @@ def process_chunking(self, payload: dict):
     
     try:
         doc = db.query(DocumentRegistry).filter(DocumentRegistry.id == uuid.UUID(document_id)).first()
+        # Initialize metrics service for chunking task (record should already exist)
+        metrics_service = MetricsService(db)
         if not doc:
             raise RuntimeError(f"Document not found in database: {document_id}")
 
         # 1. Update status to CHUNKING
         _update_status(document_id, "CHUNKING", db)
+        metrics_service.update_status(document_id, "CHUNKING")
 
         # 2. Download Cleaned Markdown from MinIO
         logger.info(f"Downloading cleaned Markdown from MinIO: {cleaned_storage_path}")
@@ -288,18 +311,24 @@ def process_chunking(self, payload: dict):
             correlation_id=payload.get("correlation_id", "")
         )
         logger.info(f"Chunking complete. Created {len(chunks_dict_list)} chunks.")
+        # Record chunking metrics
+        metrics_service.update_chunk_metrics(document_id=document_id, total_chunks=len(chunks_dict_list), chunk_size=1000, overlap_size=200)
 
         # 4. Generate Embeddings using EmbeddingService
         _update_status(document_id, "EMBEDDING", db)
+        metrics_service.update_status(document_id, "EMBEDDING")
         logger.info("Generating embeddings...")
         embedding_service = EmbeddingService()
         embeddings = [
             embedding_service.generate_embedding(chunk["text"])
             for chunk in chunks_dict_list
         ]
+        # Record embedding metrics (using placeholder model name)
+        metrics_service.update_embedding_metrics(document_id=document_id, total_vectors=len(embeddings), embedding_model="default", status="COMPLETED")
 
         # 5. Index chunks and embeddings to Qdrant using upsert_document_chunks
         _update_status(document_id, "STORING", db)
+        metrics_service.update_status(document_id, "STORING")
         logger.info("Uploading embeddings to Qdrant...")
         upsert_document_chunks(
             product_id=product_id,
@@ -313,6 +342,8 @@ def process_chunking(self, payload: dict):
 
         # 6. Update status to COMPLETED
         _update_status(document_id, "COMPLETED", db)
+        metrics_service.update_status(document_id, "COMPLETED")
+        metrics_service.mark_completed(document_id)
         logger.info("Document ingestion completed.")
 
         return {
@@ -330,6 +361,8 @@ def process_chunking(self, payload: dict):
         else:
             logger.error(f"Failed: Maximum retries exhausted for chunking job {document_id}")
             _update_status(document_id, "FAILED", db)
+            metrics_service = MetricsService(db)
+            metrics_service.mark_failed(document_id)
             try:
                 minio_client.remove_object(BUCKET_NAME, storage_path)
                 minio_client.remove_object(BUCKET_NAME, cleaned_storage_path)
