@@ -1,0 +1,138 @@
+{
+  "_comment": "Sample chat response shapes for the Envoy chatbot platform.",
+  "_description": "This file shows the two response formats a developer will encounter. All shapes match the TypeScript interfaces in packages/shared-contracts/src/types/index.ts.",
+
+  "jsonResponse": {
+    "_comment": "Shape returned by POST /api/v1/chat when stream: false. Matches the ChatResponse interface.",
+    "_interface": "ChatResponse from @envoy/shared-contracts",
+
+    "request": {
+      "method": "POST",
+      "path": "/api/v1/chat",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "bot_id":          "tensor",
+        "conversation_id": "conv_a1b2c3d4",
+        "prompt":          "How do I synchronize the knowledge base?",
+        "stream":          false
+      }
+    },
+
+    "response": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": {
+          "id":              "msg_8f8a12bc",
+          "conversation_id": "conv_a1b2c3d4",
+          "sender":          "bot",
+          "text":            "To synchronize the knowledge base, navigate to the Knowledge Metrics section in your dashboard and click 'Synchronize Brain'. The system will re-index all pending documents and update the vector store.",
+          "timestamp":       "2025-01-01T10:45:00Z"
+        }
+      }
+    }
+  },
+
+  "streamingResponse": {
+    "_comment": "Shape returned by GET /api/v1/chat/stream. Each line is a Server-Sent Event. Matches the StreamingChunk union type.",
+    "_interface": "StreamingChunk (StreamingTextChunk | StreamingDoneChunk | StreamingErrorChunk) from @envoy/shared-contracts",
+
+    "request": {
+      "method": "GET",
+      "path": "/api/v1/chat/stream?bot_id=tensor&prompt=How+do+I+sync+the+knowledge+base%3F",
+      "headers": {
+        "Accept": "text/event-stream"
+      }
+    },
+
+    "response": {
+      "status": 200,
+      "headers": {
+        "Content-Type":  "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection":    "keep-alive"
+      },
+      "sseChunks": [
+        {
+          "_type": "StreamingTextChunk",
+          "raw":   "data: {\"event\":\"text\",\"text\":\"To \"}",
+          "parsed": { "event": "text", "text": "To " }
+        },
+        {
+          "_type": "StreamingTextChunk",
+          "raw":   "data: {\"event\":\"text\",\"text\":\"synchronize \"}",
+          "parsed": { "event": "text", "text": "synchronize " }
+        },
+        {
+          "_type": "StreamingTextChunk",
+          "raw":   "data: {\"event\":\"text\",\"text\":\"the \"}",
+          "parsed": { "event": "text", "text": "the " }
+        },
+        {
+          "_comment": "... more text chunks ...",
+          "_type": "StreamingTextChunk",
+          "raw":   "data: {\"event\":\"text\",\"text\":\"knowledge base...\"}",
+          "parsed": { "event": "text", "text": "knowledge base..." }
+        },
+        {
+          "_type": "StreamingDoneChunk",
+          "_comment": "Final chunk — signals the stream is complete",
+          "raw":   "data: {\"event\":\"done\",\"message_id\":\"msg_8f8a12bc\"}",
+          "parsed": { "event": "done", "message_id": "msg_8f8a12bc" }
+        }
+      ]
+    }
+  },
+
+  "errorResponse": {
+    "_comment": "Shape returned on any error. Matches the APIErrorResponse interface.",
+    "_interface": "APIErrorResponse from @envoy/shared-contracts",
+
+    "example400": {
+      "status": 400,
+      "body": {
+        "success": false,
+        "error": {
+          "code":           "BAD_REQUEST",
+          "message":        "Parameter 'prompt' is required and must be a non-empty string.",
+          "details":        { "parameter": "prompt" },
+          "correlation_id": "req-trace-91b3-abc",
+          "timestamp":      "2025-01-01T10:45:00Z",
+          "retryable":      false
+        }
+      }
+    },
+
+    "example401": {
+      "status": 401,
+      "body": {
+        "success": false,
+        "error": {
+          "code":           "UNAUTHORIZED",
+          "message":        "Missing required header X-Envoy-Signature.",
+          "details":        null,
+          "correlation_id": "req-trace-72c1-def",
+          "timestamp":      "2025-01-01T10:45:00Z",
+          "retryable":      false
+        }
+      }
+    },
+
+    "example503": {
+      "status": 503,
+      "body": {
+        "success": false,
+        "error": {
+          "code":           "SERVICE_UNAVAILABLE",
+          "message":        "Centralized AI agent engine is currently unreachable.",
+          "details":        null,
+          "correlation_id": "req-trace-55a9-ghi",
+          "timestamp":      "2025-01-01T10:45:00Z",
+          "retryable":      true
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "_comment": "Complete branding configuration sample for the 'tensor' product.",
+  "_description": "This is the exact shape returned by GET /api/v1/products/:productId. The widget's BrandingStore reads the ui_theme_config field and applies it dynamically. All fields match the BrandingConfig interface in packages/chatbot-ui/src/branding/branding-types.ts.",
+
+  "id": "tensor",
+  "product_id": "tensor",
+  "name": "Tensor Assistant",
+  "created_at": "2025-01-01T00:00:00Z",
+  "updated_at": "2025-01-01T00:00:00Z",
+
+  "ui_theme_config": {
+
+    "colors": {
+      "_comment": "All color values must be valid hex (#rrggbb or #rgb) or rgb()/rgba() strings. Invalid values fall back to the default theme.",
+      "primaryColor":    "#2563EB",
+      "secondaryColor":  "#475569",
+      "accentColor":     "#14B8A6",
+      "backgroundColor": "#f8fafc",
+      "surfaceColor":    "#ffffff",
+      "borderColor":     "#e2e8f0",
+      "textColor":       "#111827",
+      "mutedTextColor":  "#64748b",
+      "successColor":    "#16a34a",
+      "warningColor":    "#d97706",
+      "errorColor":      "#dc2626"
+    },
+
+    "typography": {
+      "_comment": "Font family is applied inside the Shadow DOM and does not affect the host page.",
+      "fontFamily":      "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      "fontSize":        "14px",
+      "headingWeight":   600,
+      "bodyWeight":      400,
+      "messageTextSize": "13px",
+      "buttonTextSize":  "13px"
+    },
+
+    "layout": {
+      "_comment": "chatWidth and chatHeight control the size of the expanded chat window.",
+      "chatWidth":    "380px",
+      "chatHeight":   "520px",
+      "borderRadius": "12px",
+      "padding":      "16px",
+      "spacing":      "12px",
+      "bubbleRadius": "8px"
+    },
+
+    "assets": {
+      "_comment": "Asset URLs must be absolute (https://) or root-relative (/path). Empty string disables the asset.",
+      "companyLogo":  "",
+      "chatAvatar":   "",
+      "botAvatar":    "",
+      "launcherIcon": "",
+      "headerIcon":   ""
+    },
+
+    "content": {
+      "_comment": "All text content displayed inside the widget. Customize per product.",
+      "widgetTitle":         "Tensor Assistant",
+      "welcomeMessage":      "Ask Tensor Assistant about analytics, models, and reports.",
+      "placeholderText":     "Type your question...",
+      "offlineMessage":      "Tensor Assistant is currently offline. Please check back later.",
+      "errorMessage":        "Something went wrong. Please try sending your message again.",
+      "typingIndicatorText": "Tensor is thinking..."
+    },
+
+    "featureFlags": {
+      "_comment": "Boolean flags that enable or disable widget features at runtime.",
+      "fileUpload":          true,
+      "voiceInput":          false,
+      "suggestedQuestions":  true,
+      "typingAnimation":     true,
+      "streamingResponses":  true,
+      "conversationHistory": true
+    }
+
+  }
+}
