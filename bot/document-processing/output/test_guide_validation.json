@@ -1,0 +1,28 @@
+{
+  "success": true,
+  "status": "PASSED",
+  "overall_score": 0.9083,
+  "detected_issues": [
+    "Excessive blank lines ratio: 0.33 (Max: 0.15)"
+  ],
+  "warnings": [],
+  "metrics": {
+    "duplicate_ratio": 0.0,
+    "whitespace_ratio": 0.3333333333333333,
+    "noise_ratio": 0.0,
+    "overall_score": 0.9083333333333333
+  },
+  "statistics": {
+    "character_count": 140,
+    "total_lines": 3,
+    "heading_count": 1,
+    "empty_headings_count": 0,
+    "paragraph_count": 2,
+    "list_item_count": 0,
+    "page_numbers_count": 0,
+    "copyright_banners_count": 0,
+    "ocr_artifacts_count": 0,
+    "duplicate_consecutive_paragraphs": 0
+  },
+  "failure_reasons": []
+}
