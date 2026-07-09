@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Envoy Chatbot Widget Test-bed</title>
+  <!-- Force some aggressive global styles on host page to test style isolation -->
+  <style>
+    body {
+      font-family: "Comic Sans MS", cursive, sans-serif;
+      background-color: #f0fdf4;
+      padding: 40px;
+      color: #166534;
+    }
+    h1 {
+      color: #15803d;
+      margin-bottom: 20px;
+    }
+    button {
+      background-color: #dc2626 !important; /* Aggressive red buttons on host */
+      color: white !important;
+      padding: 10px 20px;
+      border: 2px solid black;
+      border-radius: 9999px;
+      cursor: pointer;
+      margin: 5px;
+      font-weight: bold;
+    }
+    button:hover {
+      background-color: #991b1b !important;
+    }
+    .control-panel {
+      background: white;
+      border: 3px solid #16a34a;
+      padding: 20px;
+      border-radius: 16px;
+      max-w: 600px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    }
+    .event-log {
+      margin-top: 20px;
+      background: #1e293b;
+      color: #38bdf8;
+      font-family: monospace;
+      padding: 15px;
+      border-radius: 8px;
+      height: 150px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Envoy Chatbot Web Component Test-bed</h1>
+  <p>This test-bed page exercises the widget lifecycle, public API, and Shadow DOM style isolation.</p>
+  
+  <div class="control-panel">
+    <h3>Host App Control Panel</h3>
+    <p>Use the buttons below to interact with the widget via the Javascript public API.</p>
+    
+    <button onclick="widget.open()">open()</button>
+    <button onclick="widget.close()">close()</button>
+    <button onclick="widget.toggle()">toggle()</button>
+    <button onclick="widget.resetConversation()">resetConversation()</button>
+    <button onclick="widget.sendMessage('Hello! Sync chatbot brain')">sendMessage('Hello! Sync chatbot brain')</button>
+    <button onclick="widget.destroy()">destroy()</button>
+    
+    <h4>Custom Events Captured:</h4>
+    <div id="event-log" class="event-log">Listening for widget events...</div>
+  </div>
+
+  <!-- Register the Web Component element -->
+  <envoy-chatbot id="envoy-widget" data-bot-id="tensor" data-api-base="http://localhost:8000"></envoy-chatbot>
+
+  <script type="module">
+    import './index.ts';
+
+    const widget = document.getElementById('envoy-widget');
+    window.widget = widget;
+
+    const logEl = document.getElementById('event-log');
+    function logEvent(name, detail = '') {
+      const time = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.textContent = `[${time}] Event: ${name} ${detail ? JSON.stringify(detail) : ''}`;
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    // Add event listeners for custom events
+    widget.addEventListener('envoy-chat-opened', () => logEvent('envoy-chat-opened'));
+    widget.addEventListener('envoy-chat-closed', () => logEvent('envoy-chat-closed'));
+    widget.addEventListener('envoy-message-sent', (e) => logEvent('envoy-message-sent', e.detail));
+    widget.addEventListener('envoy-message-received', (e) => logEvent('envoy-message-received', e.detail));
+  </script>
+</body>
+</html>

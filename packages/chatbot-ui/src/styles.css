@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:host {
+  display: block;
+  box-sizing: border-box;
+}
+
+:host *, :host *::before, :host *::after {
+  box-sizing: border-box;
+}
+
+/* Scrollbar styles for the message area */
+.envoy-messages-container::-webkit-scrollbar {
+  width: 5px;
+}
+
+.envoy-messages-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.envoy-messages-container::-webkit-scrollbar-thumb {
+  background: var(--lt-border, #cbd5e1);
+  border-radius: 4px;
+}
+
+.dark .envoy-messages-container::-webkit-scrollbar-thumb {
+  background: var(--dk-border, #475569);
+}
