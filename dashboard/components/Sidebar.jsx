@@ -66,6 +66,12 @@ const icons = {
       <path d="M6 5h4M6 8h4M6 11h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
     </svg>
   ),
+  'Knowledge Metrics': (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M2 13V3a1 1 0 0 1 1-1h5l3 3h3a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M6 8h4M6 10h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+    </svg>
+  ),
   Settings: (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5"/>
@@ -85,6 +91,7 @@ const navItems = [
   { label: 'Uploads', path: '/uploads' },
   { label: 'API Keys', path: '/api-keys' },
   { label: 'Documents', path: '/documents' },
+  { label: 'Knowledge Metrics', path: '/knowledge-metrics' },
   { label: 'Settings', path: '/settings' }
 ];
 

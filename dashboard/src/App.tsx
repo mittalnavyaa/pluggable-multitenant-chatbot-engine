@@ -12,8 +12,10 @@ import { ProductDetails } from '../pages/ProductDetails.jsx';
 import { Products } from '../pages/Products.jsx';
 import { Settings } from '../pages/Settings.jsx';
 import { Uploads } from '../pages/Uploads';
+import { KnowledgeMetrics } from '../pages/KnowledgeMetrics';
 import { Login } from './pages/Login';
 import '../styles/dashboard.css';
+import '../styles/knowledge-metrics.css';
 
 const routeTitles: Record<string, string> = {
   '/': 'Dashboard',
@@ -22,6 +24,7 @@ const routeTitles: Record<string, string> = {
   '/branding': 'Branding',
   '/api-keys': 'API Keys',
   '/documents': 'Documents',
+  '/knowledge-metrics': 'Knowledge Metrics Workspace',
   '/uploads': 'Upload Manager',
   '/settings': 'Settings'
 };
@@ -60,13 +63,14 @@ function DashboardApp() {
   return (
     <DashboardLayout activePage={activePage} onNavigate={undefined}>
       <Routes>
-        <Route path="/" element={<Dashboard data={data} />} />
+         <Route path="/" element={<Dashboard data={data} />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/products" element={<ProductsRoute />} />
         <Route path="/products/:id" element={<ProductDetailsRoute />} />
         <Route path="/branding" element={<BrandingRoute />} />
         <Route path="/api-keys" element={<ApiKeys keyRecords={data.keyRecords} />} />
         <Route path="/documents" element={<Documents documents={data.documents} />} />
+        <Route path="/knowledge-metrics" element={<KnowledgeMetrics />} />
         <Route path="/uploads" element={<Uploads />} />
         <Route path="/settings" element={<Settings settings={data.settings} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
