@@ -11,6 +11,11 @@ export default defineConfig({
   server: {
     host: '127.0.0.1',
     port: 5173,
+    hmr: {
+      protocol: 'ws',
+      host: '127.0.0.1',
+      port: 5173
+    },
     proxy: {
       '/api/v1/documents': {
         target: 'http://localhost:8000',
