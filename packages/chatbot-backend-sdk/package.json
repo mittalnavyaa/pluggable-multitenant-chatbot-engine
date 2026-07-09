@@ -7,12 +7,14 @@
   "type": "commonjs",
   "scripts": {
     "build": "tsc",
+    "test": "jest",
     "prepublishOnly": "npm run build"
   },
-  "dependencies": {},
   "devDependencies": {
-    "@types/jest": "^29.5.12",
+    "@types/jest": "^29.5.14",
     "@types/node": "^20.11.24",
+    "jest": "^30.4.2",
+    "ts-jest": "^29.4.11",
     "typescript": "^5.2.2"
   }
 }
