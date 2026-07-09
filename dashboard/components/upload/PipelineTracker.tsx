@@ -39,6 +39,19 @@ export function PipelineTracker({ job, loading }: PipelineTrackerProps) {
         <div><dt>Output File</dt><dd>{job.outputFile || 'Pending'}</dd></div>
       </dl>
       <Timeline items={job.timeline} />
+      {job.errorMessage ? (
+        <div className="pipeline-error" style={{
+          marginTop: '16px',
+          padding: '12px',
+          background: '#FEF3F2',
+          border: '1px solid #FECACA',
+          borderRadius: '8px',
+          color: '#B91C1C'
+        }}>
+          <strong>Failure reason:</strong>
+          <p style={{ margin: '8px 0 0' }}>{job.errorMessage}</p>
+        </div>
+      ) : null}
       <div className="pipeline-logs">
         <h3>Processing Logs</h3>
         <ul>
