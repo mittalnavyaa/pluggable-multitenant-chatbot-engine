@@ -230,7 +230,39 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
             except Exception as e:
                 logger.error(f"Failed to remove temp file {temp_path}: {e}")
                 
-        # Celery retry logic
+        # Differentiate between transient errors and non-transient pipeline/validation failures
+        is_non_retryable = (
+            isinstance(exc, RuntimeError) or 
+            "validation failed" in str(exc).lower() or 
+            "extraction failed" in str(exc).lower() or 
+            "sanitization failed" in str(exc).lower()
+        )
+        
+        if is_non_retryable:
+            logger.error(f"Non-retryable processing failure for job {document_id}: {exc}")
+            
+            # Determine correct terminal state: VALIDATION_FAILED vs general FAILED
+            target_status = "FAILED"
+            if "validation failed" in str(exc).lower():
+                target_status = "VALIDATION_FAILED"
+                
+            _update_status(document_id, target_status, db)
+            metrics_service = MetricsService(db)
+            if target_status == "VALIDATION_FAILED":
+                metrics_service.update_status(document_id, "VALIDATION_FAILED")
+            metrics_service.mark_failed(document_id)
+            
+            try:
+                logger.info(f"Permanent failure. Cleaning up storage object: {storage_path}")
+                minio_client.remove_object(BUCKET_NAME, storage_path)
+                cleaned_storage_path = f"{os.path.splitext(storage_path)[0]}_cleaned.md"
+                minio_client.remove_object(BUCKET_NAME, cleaned_storage_path)
+            except Exception as e:
+                logger.error(f"Failed cleanup of storage objects: {e}")
+                
+            raise exc
+            
+        # Celery retry logic for transient exceptions
         if self.request.retries < self.max_retries:
             countdown = (2 ** self.request.retries) * 2
             logger.info(f"Retry attempt {self.request.retries + 1} in {countdown} seconds...")
@@ -243,7 +275,6 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
             try:
                 logger.info(f"Permanent failure. Cleaning up storage object: {storage_path}")
                 minio_client.remove_object(BUCKET_NAME, storage_path)
-                # Clean up output markdown from storage
                 cleaned_storage_path = f"{os.path.splitext(storage_path)[0]}_cleaned.md"
                 minio_client.remove_object(BUCKET_NAME, cleaned_storage_path)
             except Exception as e:
