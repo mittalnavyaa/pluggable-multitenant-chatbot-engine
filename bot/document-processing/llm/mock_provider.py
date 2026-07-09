@@ -12,6 +12,7 @@ class MockLLMProvider(BaseLLMProvider):
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        self.model = settings.model
 
     def clean_markdown(
         self,
