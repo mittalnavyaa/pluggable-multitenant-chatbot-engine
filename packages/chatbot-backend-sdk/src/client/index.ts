@@ -98,7 +98,7 @@ export class SDKClient implements ClientContract {
         timeout: this.timeout
       };
 
-      const req = requestLib.request(options, (res) => {
+      const req = requestLib.request(options, (res: http.IncomingMessage) => {
         const status = res.statusCode || 500;
 
         // In streaming mode, resolve the promise directly with response stream if status is success
@@ -108,7 +108,7 @@ export class SDKClient implements ClientContract {
         }
 
         let responseBody = '';
-        res.on('data', (chunk) => {
+        res.on('data', (chunk: any) => {
           responseBody += chunk;
         });
 
