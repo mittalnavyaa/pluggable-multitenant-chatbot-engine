@@ -15,7 +15,7 @@ import './styles/dashboard.css';
 export function DashboardApp() {
   const data = useEnterpriseDashboardData();
   const [activePage, setActivePage] = useState('Dashboard');
-  const [selectedProductId, setSelectedProductId] = useState(data.selectedProduct.id);
+  const [selectedProductId, setSelectedProductId] = useState(data.selectedProduct?.id || null);
   const selectedProduct = data.products.find((product) => product.id === selectedProductId) || data.selectedProduct;
 
   function viewDetails(productId) {
