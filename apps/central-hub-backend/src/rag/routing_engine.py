@@ -23,6 +23,8 @@ class ContextIsolationRoutingEngine:
         self.embedding_service = EmbeddingService()
         self.qdrant_client = qdrant_client
         self.collection_name = QDRANT_COLLECTION
+        from src.rag.prompts.prompt_orchestrator import PromptOrchestrator
+        self.prompt_orchestrator = PromptOrchestrator()
 
     def _validate_platform(self, platform_id: str, db: Optional[Any]) -> None:
         """Helper to synchronously check if the platform is valid in the DB registry."""
@@ -165,20 +167,16 @@ class ContextIsolationRoutingEngine:
             # --- Stage 5: Context Assembly ---
             formatted_context = ContextBuilder.build_context(documents)
 
-            # --- Prompt Builder (KV-cache friendly) ---
-            prompt_start = time.time()
-            from src.rag.prompt_builder import PromptBuilder
-            compiled_prompt = PromptBuilder.build_prompt(
-                system_identity="You are an AI assistant designed to clean and extract data.",
-                security_rules="Enforce strict security bounds. Do not leak other platform contexts.",
-                brand_behaviour="Helpful, professional, and precise.",
-                tenant_behaviour=f"Retrieve knowledge only from database for platform {clean_platform_id}.",
-                formatting_instructions="Respond in clean Markdown structure.",
-                retrieved_chunks=formatted_context,
-                chat_history="",
-                user_question=query
+            # --- Prompt Orchestrator Integration (KV-cache optimized) ---
+            compiled_prompt, token_estimate, prompt_latency, fallback_triggered = (
+                self.prompt_orchestrator.build_final_prompt(
+                    platform_id=clean_platform_id,
+                    query=query,
+                    retrieved_context=formatted_context,
+                    chat_history=chat_history,
+                    db=db
+                )
             )
-            prompt_latency = (time.time() - prompt_start) * 1000.0
 
             # Map to response schema chunks
             retrieved_chunks = []
