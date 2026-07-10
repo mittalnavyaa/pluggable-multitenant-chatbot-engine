@@ -1,4 +1,4 @@
-﻿Clean the following raw extracted text and convert it into Markdown.
+Clean the following raw extracted text and convert it into Markdown.
 
 Instructions:
 
@@ -10,3 +10,5 @@ Instructions:
 6. Do not invent missing information.
 7. Do not summarize.
 8. Return only the cleaned Markdown.
+9. Preserve page boundary comment tags in the form of <!-- PAGE_NUMBER: X --> exactly as they appear in the source, placing them at the start of each page's content.
+

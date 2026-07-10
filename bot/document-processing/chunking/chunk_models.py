@@ -11,6 +11,8 @@ class MarkdownElement:
     h1: str | None = None
     h2: str | None = None
     h3: str | None = None
+    page_start: int = 1
+    page_end: int = 1
 
 @dataclass
 class SemanticChunk:

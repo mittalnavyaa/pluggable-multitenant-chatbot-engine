@@ -56,7 +56,9 @@ class SemanticChunkingPipeline:
                     "h1": element.h1,
                     "h2": element.h2,
                     "h3": element.h3,
-                    "type": element.type
+                    "type": element.type,
+                    "page_start": element.page_start,
+                    "page_end": element.page_end
                 })
             else:
                 # Paragraph or Blockquote -> split semantically
@@ -67,7 +69,9 @@ class SemanticChunkingPipeline:
                         "h1": element.h1,
                         "h2": element.h2,
                         "h3": element.h3,
-                        "type": element.type
+                        "type": element.type,
+                        "page_start": element.page_start,
+                        "page_end": element.page_end
                     })
 
         # 3. Group and Optimize small sections
@@ -108,6 +112,9 @@ class SemanticChunkingPipeline:
                     section_title=section_title,
                     token_count=tok_count,
                     character_count=char_count,
+                    page_start=block.get("page_start", 1),
+                    page_end=block.get("page_end", 1),
+                    element_type=block.get("type", "paragraph"),
                     correlation_id=correlation_id
                 )
                 if bot_id:

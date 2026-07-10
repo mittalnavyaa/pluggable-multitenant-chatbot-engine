@@ -141,3 +141,75 @@ Third step: fill in your academic information.
     assert "h1" in first_chunk.parent_headings
     assert first_chunk.token_count > 0
     assert first_chunk.character_count > 0
+
+
+def test_metadata_enrichment_features():
+    md_text = """<!-- PAGE_NUMBER: 1 -->
+# Installation Guide
+Welcome to the installation instructions.
+Preserving formatting page boundaries.
+
+<!-- PAGE_NUMBER: 2 -->
+## Prerequisites
+- Linux OS
+- Python 3.12
+
+<!-- PAGE_NUMBER: 3 -->
+```python
+print("Configuration script")
+```
+"""
+    embed_service = EmbeddingService()
+    config = ChunkingConfig(
+        chunk_size=100,
+        overlap_size=10,
+        max_token_limit=150,
+        semantic_threshold=0.85
+    )
+    
+    pipeline = SemanticChunkingPipeline(config=config, embedding_service=embed_service)
+    chunks = pipeline.run(
+        markdown_text=md_text,
+        platform_id="prod_test",
+        document_id="doc_test",
+        job_id="job_test",
+        source_filename="install.md",
+        correlation_id="corr_test"
+    )
+    
+    assert len(chunks) > 0
+    
+    # Assert elements parsed directly
+    elements = pipeline.parser.parse(md_text)
+    assert len(elements) > 0
+    
+    # 1. Real page_number propagation check on parser elements
+    p1_elems = [e for e in elements if "Welcome" in e.text]
+    assert len(p1_elems) == 1
+    assert p1_elems[0].page_start == 1
+    assert p1_elems[0].page_end == 1
+    
+    p2_elems = [e for e in elements if "Linux OS" in e.text]
+    assert len(p2_elems) == 1
+    assert p2_elems[0].page_start == 2
+    assert p2_elems[0].page_end == 2
+    
+    p3_elems = [e for e in elements if "Configuration script" in e.text]
+    assert len(p3_elems) == 1
+    assert p3_elems[0].page_start == 3
+    assert p3_elems[0].page_end == 3
+    assert p3_elems[0].type == "code_block"
+    
+    # 2. Check compiled pipeline chunks
+    assert len(chunks) > 0
+    first_chunk = chunks[0]
+    assert first_chunk.metadata["page_start"] == 1
+    assert first_chunk.metadata["page_number"] == 1
+    
+    # Verify the second chunk spans pages 2 to 3 and propagates correct metadata
+    second_chunk = chunks[1]
+    assert second_chunk.metadata["page_start"] == 2
+    assert second_chunk.metadata["page_end"] == 3
+    assert second_chunk.metadata["heading_path"] == "Installation Guide > Prerequisites"
+    assert second_chunk.parent_headings["h1"] == "Installation Guide"
+    assert second_chunk.parent_headings["h2"] == "Prerequisites"

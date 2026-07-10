@@ -21,7 +21,7 @@ class TokenOptimizer:
     def optimize_groups(self, groups_with_meta: list[dict]) -> list[dict]:
         """
         Combines contiguous small semantic groups belonging to the same heading section.
-        Each dictionary contains {"text": text, "h1": h1, "h2": h2, "h3": h3, "type": type}.
+        Each dictionary contains {"text": text, "h1": h1, "h2": h2, "h3": h3, "type": type, "page_start": page_start, "page_end": page_end}.
         """
         optimized = []
         if not groups_with_meta:
@@ -30,6 +30,9 @@ class TokenOptimizer:
         current_block = []
         current_tokens = 0
         current_headings = None
+        current_types = []
+        current_page_starts = []
+        current_page_ends = []
 
         for item in groups_with_meta:
             item_text = item["text"]
@@ -39,27 +42,41 @@ class TokenOptimizer:
             # If headings change, or adding this item exceeds target chunk_size, flush current block
             if current_headings is not None and (headings != current_headings or current_tokens + item_tokens > self.config.chunk_size):
                 if current_block:
+                    block_type = current_types[0] if len(set(current_types)) == 1 else "paragraph"
                     optimized.append({
                         "text": "\n\n".join(current_block),
                         "h1": current_headings[0],
                         "h2": current_headings[1],
-                        "h3": current_headings[2]
+                        "h3": current_headings[2],
+                        "type": block_type,
+                        "page_start": min(current_page_starts) if current_page_starts else 1,
+                        "page_end": max(current_page_ends) if current_page_ends else 1
                     })
                 current_block = [item_text]
                 current_tokens = item_tokens
                 current_headings = headings
+                current_types = [item.get("type", "paragraph")]
+                current_page_starts = [item.get("page_start", 1)]
+                current_page_ends = [item.get("page_end", 1)]
             else:
                 if current_headings is None:
                     current_headings = headings
                 current_block.append(item_text)
                 current_tokens += item_tokens
+                current_types.append(item.get("type", "paragraph"))
+                current_page_starts.append(item.get("page_start", 1))
+                current_page_ends.append(item.get("page_end", 1))
 
         if current_block:
+            block_type = current_types[0] if len(set(current_types)) == 1 else "paragraph"
             optimized.append({
                 "text": "\n\n".join(current_block),
                 "h1": current_headings[0],
                 "h2": current_headings[1],
-                "h3": current_headings[2]
+                "h3": current_headings[2],
+                "type": block_type,
+                "page_start": min(current_page_starts) if current_page_starts else 1,
+                "page_end": max(current_page_ends) if current_page_ends else 1
             })
 
         return optimized

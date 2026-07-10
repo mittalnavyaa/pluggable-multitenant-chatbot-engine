@@ -52,8 +52,8 @@ class PDFExtractor(BaseExtractor):
         try:
             with pdfplumber.open(str(file_path)) as pdf:
                 pages = []
-                for page in pdf.pages:
-                    pages.append(page.extract_text() or "")
+                for i, page in enumerate(pdf.pages, start=1):
+                    pages.append(f"<!-- PAGE_NUMBER: {i} -->\n{page.extract_text() or ''}")
                 return "\n".join(pages).strip(), len(pdf.pages)
         except Exception as exc:
             message = str(exc).lower()
@@ -71,8 +71,8 @@ class PDFExtractor(BaseExtractor):
                     f"PDF is password protected: {file_path.name}"
                 )
             pages = []
-            for page in reader.pages:
-                pages.append(page.extract_text() or "")
+            for i, page in enumerate(reader.pages, start=1):
+                pages.append(f"<!-- PAGE_NUMBER: {i} -->\n{page.extract_text() or ''}")
             return "\n".join(pages).strip(), len(reader.pages)
         except PasswordProtectedFileError:
             raise

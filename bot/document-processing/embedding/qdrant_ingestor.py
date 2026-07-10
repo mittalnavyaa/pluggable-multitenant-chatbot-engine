@@ -36,7 +36,7 @@ class QdrantIngestor:
 
         try:
             # Idempotently ensure collection and payload indexes exist
-            ensure_collection_initialized()
+            ensure_collection_initialized(self.client)
             
             # Execute batch upsert
             self.client.upsert(

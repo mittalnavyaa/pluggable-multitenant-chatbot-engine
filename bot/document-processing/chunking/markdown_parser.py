@@ -36,15 +36,20 @@ class MarkdownParser:
         
         paragraph_lines = []
         
+        current_page_number = 1
+        elem_page_start = 1
+        
         def flush_all():
-            nonlocal in_table, in_list, in_blockquote
+            nonlocal in_table, in_list, in_blockquote, elem_page_start
             if code_block_lines:
                 elements.append(MarkdownElement(
                     type="code_block",
                     text="\n".join(code_block_lines),
                     h1=current_h1,
                     h2=current_h2,
-                    h3=current_h3
+                    h3=current_h3,
+                    page_start=elem_page_start,
+                    page_end=current_page_number
                 ))
                 code_block_lines.clear()
             if table_lines:
@@ -53,7 +58,9 @@ class MarkdownParser:
                     text="\n".join(table_lines),
                     h1=current_h1,
                     h2=current_h2,
-                    h3=current_h3
+                    h3=current_h3,
+                    page_start=elem_page_start,
+                    page_end=current_page_number
                 ))
                 table_lines.clear()
                 in_table = False
@@ -63,7 +70,9 @@ class MarkdownParser:
                     text="\n".join(list_lines),
                     h1=current_h1,
                     h2=current_h2,
-                    h3=current_h3
+                    h3=current_h3,
+                    page_start=elem_page_start,
+                    page_end=current_page_number
                 ))
                 list_lines.clear()
                 in_list = False
@@ -73,7 +82,9 @@ class MarkdownParser:
                     text="\n".join(blockquote_lines),
                     h1=current_h1,
                     h2=current_h2,
-                    h3=current_h3
+                    h3=current_h3,
+                    page_start=elem_page_start,
+                    page_end=current_page_number
                 ))
                 blockquote_lines.clear()
                 in_blockquote = False
@@ -83,14 +94,24 @@ class MarkdownParser:
                     text="\n".join(paragraph_lines),
                     h1=current_h1,
                     h2=current_h2,
-                    h3=current_h3
+                    h3=current_h3,
+                    page_start=elem_page_start,
+                    page_end=current_page_number
                 ))
                 paragraph_lines.clear()
+            elem_page_start = current_page_number
 
         i = 0
         while i < len(lines):
             line = lines[i]
             stripped = line.strip()
+            
+            # 0. Page boundary comments
+            page_match = re.match(r"^<!--\s*PAGE_NUMBER:\s*(\d+)\s*-->$", stripped)
+            if page_match:
+                current_page_number = int(page_match.group(1))
+                i += 1
+                continue
             
             # 1. Code blocks
             if stripped.startswith("```"):
@@ -102,9 +123,12 @@ class MarkdownParser:
                         text="\n".join(code_block_lines),
                         h1=current_h1,
                         h2=current_h2,
-                        h3=current_h3
+                        h3=current_h3,
+                        page_start=elem_page_start,
+                        page_end=current_page_number
                     ))
                     code_block_lines.clear()
+                    elem_page_start = current_page_number
                 else:
                     flush_all()
                     in_code_block = True
@@ -132,8 +156,11 @@ class MarkdownParser:
                     text=line,
                     h1=current_h1,
                     h2=current_h2,
-                    h3=current_h3
+                    h3=current_h3,
+                    page_start=current_page_number,
+                    page_end=current_page_number
                 ))
+                elem_page_start = current_page_number
                 i += 1
                 continue
             elif h2_match:
@@ -145,8 +172,11 @@ class MarkdownParser:
                     text=line,
                     h1=current_h1,
                     h2=current_h2,
-                    h3=current_h3
+                    h3=current_h3,
+                    page_start=current_page_number,
+                    page_end=current_page_number
                 ))
+                elem_page_start = current_page_number
                 i += 1
                 continue
             elif h3_match:
@@ -157,8 +187,11 @@ class MarkdownParser:
                     text=line,
                     h1=current_h1,
                     h2=current_h2,
-                    h3=current_h3
+                    h3=current_h3,
+                    page_start=current_page_number,
+                    page_end=current_page_number
                 ))
+                elem_page_start = current_page_number
                 i += 1
                 continue
                 
