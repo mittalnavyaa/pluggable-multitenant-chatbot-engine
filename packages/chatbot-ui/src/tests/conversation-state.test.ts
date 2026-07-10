@@ -171,8 +171,13 @@ describe('ErrorToastController', () => {
   } as any);
 
   beforeEach(() => {
+    jest.useFakeTimers();
     container = document.createElement('div');
     controller = new ErrorToastController(container, mockBranding);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   test('should create error notifications in container', () => {
@@ -183,7 +188,7 @@ describe('ErrorToastController', () => {
 
     controller.dismiss();
     // Verify toast fade out and removal
-    jest.advanceTimersByTime ? jest.advanceTimersByTime(400) : setTimeout(() => {}, 400);
+    jest.advanceTimersByTime(400);
     expect(container.querySelector('.envoy-error-toast')).toBeNull();
   });
 });
