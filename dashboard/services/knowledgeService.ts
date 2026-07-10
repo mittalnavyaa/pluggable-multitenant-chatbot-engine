@@ -67,23 +67,12 @@ export async function fetchLiveDocuments(): Promise<LiveDocumentInfo[]> {
     let validationStatus: 'Passed' | 'Failed' | 'Pending' = 'Pending';
     let vectorizationStatus: 'Passed' | 'Failed' | 'Pending' = 'Pending';
 
-    // Hash-based seed for consistent mock values per document ID
-    let hash = 0;
-    for (let i = 0; i < d.id.length; i++) {
-      hash = d.id.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    const seed = Math.abs(hash);
-
     if (s === 'completed' || s === 'ready') {
-      chunkCount = (seed % 150) + 20;
-      vectorCount = chunkCount; // 1-to-1 chunk to vector mapping
-      processingTimeMs = (seed % 3500) + 1200; // 1.2s to 4.7s
       validationStatus = 'Passed';
       vectorizationStatus = 'Passed';
     } else if (s === 'failed' || s === 'validation_failed') {
       chunkCount = 0;
       vectorCount = 0;
-      processingTimeMs = (seed % 1500) + 500;
       validationStatus = s === 'validation_failed' ? 'Failed' : 'Passed';
       vectorizationStatus = 'Failed';
     }
@@ -96,7 +85,7 @@ export async function fetchLiveDocuments(): Promise<LiveDocumentInfo[]> {
       productId: d.product_id,
       createdAt: d.created_at,
       owner: 'System Ingestion',
-      classification: (seed % 3 === 0) ? 'Confidential' : 'Internal',
+      classification: 'Internal',
       chunkCount,
       vectorCount,
       processingTimeMs,
@@ -120,12 +109,12 @@ export async function triggerKnowledgeSync(pendingDocIds: string[]): Promise<{ j
     if (response.ok) {
       return await response.json();
     }
+    const text = await response.text().catch(() => '');
+    throw new Error(`Sync request failed with HTTP ${response.status}: ${text}`);
   } catch (err) {
-    console.warn('[knowledgeService] POST /api/v1/documents/sync unavailable, falling back to simulated sync workflow.');
+    console.warn('[knowledgeService] POST /api/v1/documents/sync failed:', err);
+    throw err;
   }
-  
-  // Return simulated job_id
-  return { job_id: `sync-job-${Math.random().toString(36).substring(7)}` };
 }
 
 export async function fetchKnowledgeMetrics(): Promise<KnowledgeSummaryMetrics> {
@@ -135,9 +124,8 @@ export async function fetchKnowledgeMetrics(): Promise<KnowledgeSummaryMetrics> 
   }
   const data = await response.json();
   
-  // Estimate some document count fields that summary response doesn't hold directly
   return {
-    totalDocuments: 0, 
+    totalDocuments: 0,
     completedDocuments: 0,
     failedDocuments: 0,
     processingDocuments: 0,
@@ -145,9 +133,9 @@ export async function fetchKnowledgeMetrics(): Promise<KnowledgeSummaryMetrics> 
     totalVectors: data.total_vectors,
     averageChunksPerDoc: data.average_chunks_per_document,
     totalStorageBytes: data.total_storage_bytes,
-    averageDocSizeBytes: data.total_storage_bytes / 5, // fallback estimate
-    averageChunkSizeBytes: 6144,
-    activeDocuments: 5,
+    averageDocSizeBytes: 0,
+    averageChunkSizeBytes: 0,
+    activeDocuments: 0,
     validationSuccessRate: data.validation_success_rate_percent,
     vectorizationSuccessRate: data.vectorization_success_rate_percent,
     averageProcessingTimeMs: data.average_processing_time_ms,
@@ -203,7 +191,7 @@ export async function fetchActivityFeed(): Promise<ActivityItem[]> {
       text: item.description,
       time: timeStr,
       docName: item.document_name,
-      product: item.product_id ? item.product_id.charAt(0).toUpperCase() + item.product_id.slice(1) : 'Tensor'
+      product: item.product_id ? item.product_id.charAt(0).toUpperCase() + item.product_id.slice(1) : ''
     };
   });
 }

@@ -21,7 +21,9 @@ export function Dashboard({ data }) {
             <a href="/uploads" className="panel__link">View all</a>
           </div>
           <ol className="activity-feed">
-            {recentActivity.map((item) => (
+            {recentActivity.length === 0 ? (
+              <li className="activity-feed__empty">No recent activity.</li>
+            ) : recentActivity.map((item) => (
               <li key={item.id} className={`activity-feed__item activity-feed__item--${item.type}`}>
                 <span className="activity-feed__dot" aria-hidden="true" />
                 <div className="activity-feed__body">
@@ -38,7 +40,9 @@ export function Dashboard({ data }) {
             <a href="/settings" className="panel__link">View all</a>
           </div>
           <div className="settings-grid">
-            {settings.slice(0, 3).map((setting) => <SettingsCard key={setting.name} setting={setting} />)}
+            {settings.length === 0 ? (
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>No settings data available.</p>
+            ) : settings.slice(0, 3).map((setting) => <SettingsCard key={setting.name} setting={setting} />)}
           </div>
         </div>
       </section>

@@ -96,7 +96,7 @@ export function useKnowledgeMetrics() {
     // 1536 float32 dimensions per vector = 6144 bytes (~6KB)
     const totalStorage = totalVectors * 1536 * 4;
     const avgDocSize = completed > 0 ? Math.round(totalStorage / completed) : 0;
-    const avgChunkSize = 1536 * 4;
+    const avgChunkSize = totalChunks > 0 ? Math.round(totalStorage / totalChunks) : 0;
 
     const valSuccessCount = documents.filter(d => d.validationStatus === 'Passed').length;
     const valTotalCount = documents.filter(d => d.validationStatus !== 'Pending').length;
@@ -142,7 +142,7 @@ export function useKnowledgeMetrics() {
     const sorted = [...documents].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     
     sorted.forEach((doc) => {
-      const pName = doc.productId ? doc.productId.charAt(0).toUpperCase() + doc.productId.slice(1) : 'Tensor';
+      const pName = doc.productId ? doc.productId.charAt(0).toUpperCase() + doc.productId.slice(1) : '';
       if (doc.status === 'ready') {
         feed.push({
           id: `ready-${doc.id}`,
