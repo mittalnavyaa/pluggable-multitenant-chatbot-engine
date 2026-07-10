@@ -57,3 +57,20 @@
   background: var(--envoy-border);
   border-radius: 4px;
 }
+
+/* Blinking streaming caret cursor */
+.envoy-streaming > p:last-child::after,
+.envoy-streaming:not(:has(p))::after {
+  content: '▊';
+  display: inline-block;
+  margin-left: 2px;
+  vertical-align: middle;
+  color: var(--envoy-primary);
+  animation: envoy-blink 1s step-end infinite;
+}
+
+@keyframes envoy-blink {
+  from, to { opacity: 1; }
+  50% { opacity: 0; }
+}
+

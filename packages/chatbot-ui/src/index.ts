@@ -5,6 +5,8 @@ import { type Message, type BrandingConfig, type WidgetState } from './types';
 import { brandingStore } from './branding/branding-store';
 import { CSSVariableMapper } from './branding/css-variable-mapper';
 import { DEFAULT_ENVOY_THEME } from './branding/default-theme';
+import { SSEClient } from './streaming/sse-client';
+import { MarkdownRenderer } from './streaming/markdown-renderer';
 
 export class EnvoyChatbot extends HTMLElement {
   private isOpen: boolean = false;
@@ -14,6 +16,7 @@ export class EnvoyChatbot extends HTMLElement {
   private botId: string = '';
   private apiBase: string = '';
   private currentStreamInterval: number | null = null;
+  private activeSseClient: SSEClient | null = null;
 
   // DOM Elements refs inside Shadow DOM
   private containerEl!: HTMLDivElement;
@@ -105,6 +108,11 @@ export class EnvoyChatbot extends HTMLElement {
     
     if (this.branding.featureFlags.conversationHistory) {
       localStorage.removeItem(`envoy-chat-history-${this.botId}`);
+    }
+
+    if (this.activeSseClient) {
+      this.activeSseClient.disconnect();
+      this.activeSseClient = null;
     }
 
     this.addWelcomeMessage();
@@ -471,7 +479,15 @@ export class EnvoyChatbot extends HTMLElement {
     }
 
     bubble.setAttribute('id', `msg-${msg.id}`);
-    bubble.textContent = msg.text;
+    
+    if (isBot) {
+      bubble.innerHTML = MarkdownRenderer.render(msg.text);
+      if (msg.isStreaming) {
+        bubble.classList.add('envoy-streaming');
+      }
+    } else {
+      bubble.textContent = msg.text;
+    }
     
     // Append container
     this.messagesContainerEl.appendChild(bubble);
@@ -480,61 +496,152 @@ export class EnvoyChatbot extends HTMLElement {
   private async generateBotResponse(userPrompt: string) {
     this.state = 'loading';
 
+    // Disconnect any existing active client
+    if (this.activeSseClient) {
+      this.activeSseClient.disconnect();
+      this.activeSseClient = null;
+    }
+
+    if (this.currentStreamInterval) {
+      clearInterval(this.currentStreamInterval);
+      this.currentStreamInterval = null;
+    }
+
     // Check typing animation flag
     if (this.branding.featureFlags.typingAnimation) {
       this.typingIndicatorEl.classList.remove('hidden');
       this.scrollToBottom();
     }
 
-    // Check streaming responses flag
-    const streamUrl = `${this.apiBase}/api/v1/chat/stream?bot_id=${this.botId}&prompt=${encodeURIComponent(userPrompt)}`;
     let streamSucceeded = false;
 
     if (this.branding.featureFlags.streamingResponses) {
       try {
-        const response = await fetch(streamUrl);
-        if (response.ok && response.body) {
-          streamSucceeded = true;
-          this.typingIndicatorEl.classList.add('hidden');
-          
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-          
-          const botMsg: Message = {
-            id: `bot-${Date.now()}`,
-            sender: 'bot',
-            text: '',
-            timestamp: new Date().toISOString(),
-            isStreaming: true
-          };
-          this.messages.push(botMsg);
-          this.appendMessageDOM(botMsg);
-          const bubble = this.shadowRoot!.getElementById(`msg-${botMsg.id}`) as HTMLDivElement;
+        const botMsg: Message = {
+          id: `bot-${Date.now()}`,
+          sender: 'bot',
+          text: '',
+          timestamp: new Date().toISOString(),
+          isStreaming: true
+        };
 
-          while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n');
-            for (const line of lines) {
-              if (line.startsWith('data:')) {
-                const dataText = line.substring(5).trim();
-                if (dataText === '[DONE]') break;
-                try {
-                  const parsed = JSON.parse(dataText);
-                  botMsg.text += parsed.text || '';
-                  if (bubble) bubble.textContent = botMsg.text;
-                  this.scrollToBottom();
-                } catch {
-                  botMsg.text += dataText;
-                  if (bubble) bubble.textContent = botMsg.text;
-                  this.scrollToBottom();
+        let bubbleAppended = false;
+        let bubble: HTMLDivElement | null = null;
+
+        this.activeSseClient = new SSEClient({
+          apiBase: this.apiBase,
+          botId: this.botId,
+          prompt: userPrompt,
+          onStatusChange: (status) => {
+            if (status === 'streaming') {
+              this.typingIndicatorEl.classList.add('hidden');
+            } else if (status === 'completed' || status === 'failed') {
+              this.state = 'idle';
+              this.typingIndicatorEl.classList.add('hidden');
+              if (botMsg.isStreaming) {
+                botMsg.isStreaming = false;
+                if (bubble) {
+                  bubble.classList.remove('envoy-streaming');
                 }
               }
             }
+          },
+          onToken: (token) => {
+            streamSucceeded = true;
+            if (!bubbleAppended) {
+              bubbleAppended = true;
+              this.messages.push(botMsg);
+              this.appendMessageDOM(botMsg);
+              bubble = this.shadowRoot!.getElementById(`msg-${botMsg.id}`) as HTMLDivElement;
+            }
+            botMsg.text += token;
+            if (bubble) {
+              bubble.innerHTML = MarkdownRenderer.render(botMsg.text);
+            }
+            this.scrollToBottom();
+          },
+          onComplete: () => {
+            this.activeSseClient = null;
+            if (this.branding.featureFlags.conversationHistory) {
+              this.saveHistory();
+            }
+            this.dispatchEvent(new CustomEvent('envoy-message-received', {
+              detail: { text: botMsg.text },
+              bubbles: true,
+              composed: true
+            }));
+          },
+          onError: (errorMsg) => {
+            this.activeSseClient = null;
+            console.error('[envoy-chatbot] SSE Streaming error:', errorMsg);
+
+            // Fallback if no tokens were ever received
+            if (!streamSucceeded) {
+              this.runSimulatedResponse(userPrompt);
+            } else {
+              if (bubble) {
+                botMsg.text += `\n\n*Error: Connection lost. ${errorMsg}*`;
+                bubble.innerHTML = MarkdownRenderer.render(botMsg.text);
+                bubble.classList.remove('envoy-streaming');
+              }
+              this.scrollToBottom();
+            }
+          }
+        });
+
+        await this.activeSseClient.connect();
+        return;
+      } catch (err) {
+        console.warn('[envoy-chatbot] Failed establishing stream, falling back.', err);
+      }
+    }
+
+    if (!streamSucceeded) {
+      await this.runSimulatedResponse(userPrompt);
+    }
+  }
+
+  private async runSimulatedResponse(userPrompt: string) {
+    if (this.branding.featureFlags.typingAnimation) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+    }
+    this.typingIndicatorEl.classList.add('hidden');
+
+    const botMsg: Message = {
+      id: `bot-${Date.now()}`,
+      sender: 'bot',
+      text: '',
+      timestamp: new Date().toISOString(),
+      isStreaming: true
+    };
+
+    const reply = this.getSimulatedReply(userPrompt);
+
+    if (this.branding.featureFlags.streamingResponses) {
+      this.messages.push(botMsg);
+      this.appendMessageDOM(botMsg);
+      const bubble = this.shadowRoot!.getElementById(`msg-${botMsg.id}`) as HTMLDivElement;
+
+      let wordIndex = 0;
+      this.currentStreamInterval = window.setInterval(() => {
+        if (wordIndex < reply.length) {
+          botMsg.text += reply[wordIndex];
+          if (bubble) {
+            bubble.innerHTML = MarkdownRenderer.render(botMsg.text);
+          }
+          wordIndex++;
+          this.scrollToBottom();
+        } else {
+          if (this.currentStreamInterval) {
+            clearInterval(this.currentStreamInterval);
+            this.currentStreamInterval = null;
           }
           botMsg.isStreaming = false;
-          
+          if (bubble) {
+            bubble.classList.remove('envoy-streaming');
+          }
+          this.state = 'idle';
+
           if (this.branding.featureFlags.conversationHistory) {
             this.saveHistory();
           }
@@ -545,80 +652,24 @@ export class EnvoyChatbot extends HTMLElement {
             composed: true
           }));
         }
-      } catch {
-        // Fallback simulation
-      }
-    }
-
-    if (!streamSucceeded) {
-      // Simulate typing delay
-      if (this.branding.featureFlags.typingAnimation) {
-        await new Promise(resolve => setTimeout(resolve, 800));
-      }
-      this.typingIndicatorEl.classList.add('hidden');
-
-      const botMsg: Message = {
-        id: `bot-${Date.now()}`,
-        sender: 'bot',
-        text: '',
-        timestamp: new Date().toISOString(),
-        isStreaming: true
-      };
-      
-      const reply = this.getSimulatedReply(userPrompt);
-
-      if (this.branding.featureFlags.streamingResponses) {
-        this.messages.push(botMsg);
-        this.appendMessageDOM(botMsg);
-        const bubble = this.shadowRoot!.getElementById(`msg-${botMsg.id}`) as HTMLDivElement;
-
-        let wordIndex = 0;
-        this.currentStreamInterval = window.setInterval(() => {
-          if (wordIndex < reply.length) {
-            botMsg.text += reply[wordIndex];
-            if (bubble) bubble.textContent = botMsg.text;
-            wordIndex++;
-            this.scrollToBottom();
-          } else {
-            if (this.currentStreamInterval) {
-              clearInterval(this.currentStreamInterval);
-              this.currentStreamInterval = null;
-            }
-            botMsg.isStreaming = false;
-            this.state = 'idle';
-            
-            if (this.branding.featureFlags.conversationHistory) {
-              this.saveHistory();
-            }
-
-            this.dispatchEvent(new CustomEvent('envoy-message-received', {
-              detail: { text: botMsg.text },
-              bubbles: true,
-              composed: true
-            }));
-          }
-        }, 25);
-      } else {
-        // Complete print instantly if streaming is disabled
-        botMsg.text = reply;
-        botMsg.isStreaming = false;
-        this.messages.push(botMsg);
-        this.appendMessageDOM(botMsg);
-        this.scrollToBottom();
-        this.state = 'idle';
-
-        if (this.branding.featureFlags.conversationHistory) {
-          this.saveHistory();
-        }
-
-        this.dispatchEvent(new CustomEvent('envoy-message-received', {
-          detail: { text: botMsg.text },
-          bubbles: true,
-          composed: true
-        }));
-      }
+      }, 25);
     } else {
+      botMsg.text = reply;
+      botMsg.isStreaming = false;
+      this.messages.push(botMsg);
+      this.appendMessageDOM(botMsg);
+      this.scrollToBottom();
       this.state = 'idle';
+
+      if (this.branding.featureFlags.conversationHistory) {
+        this.saveHistory();
+      }
+
+      this.dispatchEvent(new CustomEvent('envoy-message-received', {
+        detail: { text: botMsg.text },
+        bubbles: true,
+        composed: true
+      }));
     }
   }
 
@@ -644,6 +695,10 @@ export class EnvoyChatbot extends HTMLElement {
     if (this.currentStreamInterval) {
       clearInterval(this.currentStreamInterval);
       this.currentStreamInterval = null;
+    }
+    if (this.activeSseClient) {
+      this.activeSseClient.disconnect();
+      this.activeSseClient = null;
     }
   }
 }

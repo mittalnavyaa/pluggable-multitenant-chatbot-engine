@@ -1,5 +1,6 @@
 // packages/chatbot-ui/src/types.ts
 
+
 export interface Message {
   id: string;
   sender: 'user' | 'bot';
@@ -8,15 +9,7 @@ export interface Message {
   isStreaming?: boolean;
 }
 
-export interface BrandingConfig {
-  primaryColor?: string;
-  accentColor?: string;
-  widgetTitle?: string;
-  launcherLabel?: string;
-  welcomeMessage?: string;
-  logoUrl?: string;
-  borderRadius?: string;
-  fontFamily?: string;
-}
+export * from './branding/branding-types';
 
 export type WidgetState = 'idle' | 'loading' | 'connected' | 'error';
+
