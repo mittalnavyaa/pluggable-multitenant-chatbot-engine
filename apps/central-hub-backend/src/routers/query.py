@@ -86,11 +86,12 @@ async def retrieve_context(
     try:
         # 2. Trigger routing engine retrieval
         engine = ContextIsolationRoutingEngine()
-        response = engine.retrieve(
+        response = await engine.retrieve(
             platform_id=platform_id,
             query=payload.query,
             conversation_id=payload.conversation_id,
-            chat_history=payload.chat_history
+            chat_history=payload.chat_history,
+            db=db
         )
         return response
 

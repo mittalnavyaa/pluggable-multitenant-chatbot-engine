@@ -10,6 +10,12 @@ class RetrievalConfig(BaseSettings):
     retrieval_strategy: str = os.getenv("RETRIEVAL_STRATEGY", "similarity")
     max_context_chunks: int = int(os.getenv("RETRIEVAL_MAX_CONTEXT_CHUNKS", "10"))
     timeout: float = float(os.getenv("RETRIEVAL_TIMEOUT", "10.0"))  # Timeout in seconds
+    redis_cache_enabled: bool = os.getenv("RETRIEVAL_REDIS_CACHE_ENABLED", "true").lower() in ("true", "1", "yes")
+    redis_cache_ttl: int = int(os.getenv("RETRIEVAL_REDIS_CACHE_TTL", "3600"))
+    qdrant_hnsw_ef: int = int(os.getenv("RETRIEVAL_QDRANT_HNSW_EF", "48"))
+    qdrant_indexed_only: bool = os.getenv("RETRIEVAL_QDRANT_INDEXED_ONLY", "true").lower() in ("true", "1", "yes")
+    streaming_enabled: bool = os.getenv("RETRIEVAL_STREAMING_ENABLED", "true").lower() in ("true", "1", "yes")
+    async_auth_enabled: bool = os.getenv("RETRIEVAL_ASYNC_AUTH_ENABLED", "true").lower() in ("true", "1", "yes")
     payload_fields: list[str] = [
         "platform_id",
         "product_id",

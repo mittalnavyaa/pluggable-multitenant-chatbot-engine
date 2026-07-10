@@ -2,6 +2,7 @@
 
 import time
 import logging
+import asyncio
 from typing import List, Dict, Any, Optional
 
 from src.init_qdrant import qdrant_client, QDRANT_COLLECTION
@@ -23,17 +24,36 @@ class ContextIsolationRoutingEngine:
         self.qdrant_client = qdrant_client
         self.collection_name = QDRANT_COLLECTION
 
-    def retrieve(
+    def _validate_platform(self, platform_id: str, db: Optional[Any]) -> None:
+        """Helper to synchronously check if the platform is valid in the DB registry."""
+        if not db:
+            return
+        
+        # Verify platform state
+        # Resolving bot/document-processing path imports
+        from tenant_stamping.platform_resolver import PlatformResolver
+        from tenant_stamping.exceptions import PlatformVerificationError
+        
+        try:
+            resolver = PlatformResolver(db)
+            resolver.verify_platform(platform_id)
+        except PlatformVerificationError as ex:
+            raise InvalidPlatformError(str(ex)) from ex
+        except Exception as ex:
+            raise InvalidPlatformError(f"Database platform verification failed: {ex}") from ex
+
+    async def retrieve(
         self,
         platform_id: str,
         query: str,
         conversation_id: str,
-        chat_history: Optional[List[Dict[str, Any]]] = None
+        chat_history: Optional[List[Dict[str, Any]]] = None,
+        db: Optional[Any] = None
     ) -> RuntimeResponse:
         """
-        Executes the isolation retrieval pipeline.
-        Validates request parameters, computes query embeddings, filters on tenant domain,
-        retrieves matching chunks, and builds a clean formatted context block.
+        Executes the optimized isolation retrieval pipeline.
+        Validates requests concurrently, performs semantic cache lookup via Redis,
+        retrieves matching chunks via high-speed Qdrant, compiles prompts, and returns statistics.
         """
         start_time = time.time()
         
@@ -60,7 +80,72 @@ class ContextIsolationRoutingEngine:
         )
 
         try:
+            # --- Concurrency Phase: Auth Check + Embedding Generation ---
+            auth_latency = 0.0
+            embedding_latency = 0.0
+            query_vector = None
+
+            if self.config.async_auth_enabled and db:
+                def run_auth():
+                    nonlocal auth_latency
+                    s = time.time()
+                    self._validate_platform(clean_platform_id, db)
+                    auth_latency = (time.time() - s) * 1000.0
+
+                def run_embed():
+                    nonlocal embedding_latency, query_vector
+                    s = time.time()
+                    try:
+                        query_vector = self.embedding_service.generate_embedding(query)
+                    except Exception as ex:
+                        from src.rag.exceptions import EmbeddingGenerationError
+                        raise EmbeddingGenerationError(f"Embedding computation failed: {ex}") from ex
+                    embedding_latency = (time.time() - s) * 1000.0
+
+                auth_task = asyncio.to_thread(run_auth)
+                embed_task = asyncio.to_thread(run_embed)
+                
+                # Executing gathered tasks concurrently. Auth failures abort execution immediately.
+                await asyncio.gather(auth_task, embed_task)
+            else:
+                s = time.time()
+                self._validate_platform(clean_platform_id, db)
+                auth_latency = (time.time() - s) * 1000.0
+                
+                s = time.time()
+                try:
+                    query_vector = self.embedding_service.generate_embedding(query)
+                except Exception as ex:
+                    from src.rag.exceptions import EmbeddingGenerationError
+                    raise EmbeddingGenerationError(f"Embedding computation failed: {ex}") from ex
+                embedding_latency = (time.time() - s) * 1000.0
+
+            # --- Redis Semantic Cache Lookup ---
+            redis_start = time.time()
+            redis_latency = 0.0
+            cache_hit = False
+
+            if self.config.redis_cache_enabled:
+                from src.rag.semantic_cache import TenantSemanticCache
+                cache = TenantSemanticCache(
+                    platform_id=clean_platform_id,
+                    ttl=self.config.redis_cache_ttl
+                )
+                cached_response = cache.get(query, query_vector)
+                redis_latency = (time.time() - redis_start) * 1000.0
+                
+                if cached_response is not None:
+                    overall_latency = (time.time() - start_time) * 1000.0
+                    cached_response.statistics.query_latency_ms = overall_latency
+                    cached_response.statistics.auth_latency_ms = auth_latency
+                    cached_response.statistics.embedding_latency_ms = embedding_latency
+                    cached_response.statistics.redis_latency_ms = redis_latency
+                    cached_response.statistics.total_response_latency_ms = overall_latency
+                    cached_response.statistics.cache_hit = True
+                    return cached_response
+
             # --- Stage 2, 3, & 4: LangChain Isolated Retriever Execution ---
+            qdrant_start = time.time()
             retriever = IsolatedQdrantRetriever(
                 qdrant_client=self.qdrant_client,
                 collection_name=self.collection_name,
@@ -68,14 +153,32 @@ class ContextIsolationRoutingEngine:
                 platform_id=clean_platform_id,
                 top_k=self.config.top_k,
                 score_threshold=self.config.score_threshold,
-                timeout=self.config.timeout
+                timeout=self.config.timeout,
+                hnsw_ef=self.config.qdrant_hnsw_ef,
+                indexed_only=self.config.qdrant_indexed_only
             )
 
             # Retrieve documents
             documents = retriever.invoke(query)
+            qdrant_latency = (time.time() - qdrant_start) * 1000.0
 
             # --- Stage 5: Context Assembly ---
             formatted_context = ContextBuilder.build_context(documents)
+
+            # --- Prompt Builder (KV-cache friendly) ---
+            prompt_start = time.time()
+            from src.rag.prompt_builder import PromptBuilder
+            compiled_prompt = PromptBuilder.build_prompt(
+                system_identity="You are an AI assistant designed to clean and extract data.",
+                security_rules="Enforce strict security bounds. Do not leak other platform contexts.",
+                brand_behaviour="Helpful, professional, and precise.",
+                tenant_behaviour=f"Retrieve knowledge only from database for platform {clean_platform_id}.",
+                formatting_instructions="Respond in clean Markdown structure.",
+                retrieved_chunks=formatted_context,
+                chat_history="",
+                user_question=query
+            )
+            prompt_latency = (time.time() - prompt_start) * 1000.0
 
             # Map to response schema chunks
             retrieved_chunks = []
@@ -98,27 +201,43 @@ class ContextIsolationRoutingEngine:
                 )
 
             # Capture stats
-            latency_ms = (time.time() - start_time) * 1000.0
-            statistics = RetrievalStatistics(
-                query_latency_ms=latency_ms,
-                chunks_count=len(documents),
-                score_distribution=score_distribution
+            overall_latency = (time.time() - start_time) * 1000.0
+            
+            response = RuntimeResponse(
+                platform_id=clean_platform_id,
+                retrieved_chunks=retrieved_chunks,
+                formatted_context=formatted_context,
+                statistics=RetrievalStatistics(
+                    query_latency_ms=overall_latency,
+                    chunks_count=len(documents),
+                    score_distribution=score_distribution,
+                    auth_latency_ms=auth_latency,
+                    embedding_latency_ms=embedding_latency,
+                    redis_latency_ms=redis_latency,
+                    qdrant_latency_ms=qdrant_latency,
+                    prompt_build_latency_ms=prompt_latency,
+                    llm_first_token_latency_ms=0.0,
+                    cache_hit=False,
+                    streaming_duration_ms=0.0,
+                    total_response_latency_ms=overall_latency
+                ),
+                compiled_prompt=compiled_prompt
             )
+
+            # --- Redis Semantic Cache Write ---
+            if self.config.redis_cache_enabled:
+                redis_write_start = time.time()
+                cache.set(query, query_vector, response)
+                redis_latency += (time.time() - redis_write_start) * 1000.0
+                response.statistics.redis_latency_ms = redis_latency
 
             # Log execution analytics
             logger.info(
                 f"Retrieval Complete: platform_id={clean_platform_id}, "
-                f"chunks_retrieved={len(documents)}, latency={latency_ms:.2f}ms, "
-                f"score_min={min(score_distribution) if score_distribution else 0.0:.3f}, "
-                f"score_max={max(score_distribution) if score_distribution else 0.0:.3f}"
+                f"chunks_retrieved={len(documents)}, latency={overall_latency:.2f}ms"
             )
 
-            return RuntimeResponse(
-                platform_id=clean_platform_id,
-                retrieved_chunks=retrieved_chunks,
-                formatted_context=formatted_context,
-                statistics=statistics
-            )
+            return response
 
         except Exception as e:
             logger.error(f"Retrieval failed for platform_id {clean_platform_id}: {e}")

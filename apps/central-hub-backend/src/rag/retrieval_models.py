@@ -24,6 +24,15 @@ class RetrievalStatistics(BaseModel):
     query_latency_ms: float = Field(..., description="Latency of vector query in milliseconds.")
     chunks_count: int = Field(..., description="Number of context chunks successfully retrieved.")
     score_distribution: List[float] = Field(..., description="List of similarity scores retrieved.")
+    auth_latency_ms: float = Field(default=0.0, description="Database platform validation check duration (ms).")
+    embedding_latency_ms: float = Field(default=0.0, description="Embedding generation duration (ms).")
+    redis_latency_ms: float = Field(default=0.0, description="Cache lookup/store duration (ms).")
+    qdrant_latency_ms: float = Field(default=0.0, description="Qdrant search query duration (ms).")
+    prompt_build_latency_ms: float = Field(default=0.0, description="Prompt compilation duration (ms).")
+    llm_first_token_latency_ms: float = Field(default=0.0, description="First-token streaming latency (ms).")
+    cache_hit: bool = Field(default=False, description="Indicates if search bypassed retriever and hit cache.")
+    streaming_duration_ms: float = Field(default=0.0, description="Time spent streaming response to client (ms).")
+    total_response_latency_ms: float = Field(default=0.0, description="Total response latency (ms).")
 
 class RuntimeResponse(BaseModel):
     """The structured object returned by the orchestration engine."""
@@ -31,3 +40,4 @@ class RuntimeResponse(BaseModel):
     retrieved_chunks: List[RetrievedChunk] = Field(..., description="List of extracted relevant document sections.")
     formatted_context: str = Field(..., description="Assembled clean context string for LLM input.")
     statistics: RetrievalStatistics = Field(..., description="Performance metrics of retrieval operation.")
+    compiled_prompt: Optional[str] = Field(default=None, description="The KV-cache friendly compiled prompt template.")

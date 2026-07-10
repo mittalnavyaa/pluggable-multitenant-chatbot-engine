@@ -7,6 +7,7 @@ from langchain_core.retrievers import BaseRetriever
 from langchain_core.documents import Document
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from qdrant_client.http.exceptions import UnexpectedResponse
+from qdrant_client.models import SearchParams
 
 from src.rag.filters import build_tenant_filter
 from src.rag.exceptions import VectorDatabaseUnavailableError, RetrievalTimeoutError, InvalidMetadataError
@@ -23,6 +24,8 @@ class IsolatedQdrantRetriever(BaseRetriever):
     top_k: int
     score_threshold: float
     timeout: float
+    hnsw_ef: int = 48
+    indexed_only: bool = True
 
     def _get_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun
@@ -52,7 +55,11 @@ class IsolatedQdrantRetriever(BaseRetriever):
                 limit=self.top_k,
                 score_threshold=self.score_threshold,
                 with_payload=True,
-                timeout=self.timeout
+                timeout=self.timeout,
+                search_params=SearchParams(
+                    hnsw_ef=self.hnsw_ef,
+                    indexed_only=self.indexed_only
+                )
             )
         except UnexpectedResponse as e:
             logger.error(f"Qdrant returned unexpected response: {e}")
