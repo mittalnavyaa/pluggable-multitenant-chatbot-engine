@@ -1,4 +1,5 @@
 import os
+os.environ["RETRIEVAL_REDIS_CACHE_ENABLED"] = "false"
 import sys
 import uuid
 import pytest
@@ -16,9 +17,6 @@ backend_path = os.path.join(project_root, "apps", "central-hub-backend")
 
 if backend_path not in sys.path:
     sys.path.insert(0, backend_path)
-
-if "src" in sys.modules:
-    del sys.modules["src"]
 
 from src.main import app
 from src.database.database import SessionLocal

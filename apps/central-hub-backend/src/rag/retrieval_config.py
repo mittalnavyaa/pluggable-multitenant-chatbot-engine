@@ -20,6 +20,23 @@ class RetrievalConfig(BaseSettings):
     qdrant_indexed_only: bool = os.getenv("RETRIEVAL_QDRANT_INDEXED_ONLY", "true").lower() in ("true", "1", "yes")
     streaming_enabled: bool = os.getenv("RETRIEVAL_STREAMING_ENABLED", "true").lower() in ("true", "1", "yes")
     async_auth_enabled: bool = os.getenv("RETRIEVAL_ASYNC_AUTH_ENABLED", "true").lower() in ("true", "1", "yes")
+    
+    # Gateway & Rate Limiting configs
+    rate_limit_enabled: bool = os.getenv("GATEWAY_RATE_LIMIT_ENABLED", "true").lower() in ("true", "1", "yes")
+    rate_limit_redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    rate_limit_requests_per_minute: int = int(os.getenv("GATEWAY_RPM_LIMIT", "60"))
+    rate_limit_max_concurrent_requests: int = int(os.getenv("GATEWAY_MAX_CONCURRENT", "10"))
+    rate_limit_max_query_length: int = int(os.getenv("GATEWAY_MAX_QUERY_LENGTH", "4000"))
+    rate_limit_streaming_timeout: float = float(os.getenv("GATEWAY_STREAMING_TIMEOUT", "60.0"))
+    rate_limit_tier_configs: str = os.getenv(
+        "GATEWAY_RATE_LIMIT_TIERS",
+        '{"standard": {"rpm": 60, "concurrent": 5}, "premium": {"rpm": 300, "concurrent": 20}, "admin": {"rpm": 1000, "concurrent": 50}}'
+    )
+    rate_limit_tenant_tiers: str = os.getenv(
+        "GATEWAY_TENANT_TIERS",
+        '{"tensor": "premium", "admissions": "standard"}'
+    )
+
     payload_fields: list[str] = [
         "platform_id",
         "product_id",

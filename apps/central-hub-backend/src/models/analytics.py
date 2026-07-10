@@ -98,3 +98,18 @@ class QueryRetrievalMetrics(Base):
     token_usage = Column(Integer, nullable=True)
     fallback_triggered = Column(Boolean, default=False)
     created_at = Column(DateTime, server_default=text("timezone('utc', now())"))
+
+
+class GatewayMetrics(Base):
+    __tablename__ = "gateway_metrics"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("uuid_generate_v4()")
+    )
+    platform_id = Column(String(100), nullable=True)
+    status = Column(String(50), nullable=False)  # e.g., ACCEPTED, RATE_LIMITED, AUTH_FAILURE, VALIDATION_FAILURE
+    error_reason = Column(String(255), nullable=True)
+    latency_ms = Column(Float, nullable=False)
+    created_at = Column(DateTime, server_default=text("timezone('utc', now())"))

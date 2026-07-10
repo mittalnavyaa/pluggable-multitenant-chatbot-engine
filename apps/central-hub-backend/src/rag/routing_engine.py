@@ -82,45 +82,24 @@ class ContextIsolationRoutingEngine:
         )
 
         try:
-            # --- Concurrency Phase: Auth Check + Embedding Generation ---
+            # --- Sequential Stage: Validation First, then Embedding Generation ---
             auth_latency = 0.0
             embedding_latency = 0.0
             query_vector = None
 
-            if self.config.async_auth_enabled and db:
-                def run_auth():
-                    nonlocal auth_latency
-                    s = time.time()
-                    self._validate_platform(clean_platform_id, db)
-                    auth_latency = (time.time() - s) * 1000.0
+            # 1. Platform Validation (run first)
+            s = time.time()
+            self._validate_platform(clean_platform_id, db)
+            auth_latency = (time.time() - s) * 1000.0
 
-                def run_embed():
-                    nonlocal embedding_latency, query_vector
-                    s = time.time()
-                    try:
-                        query_vector = self.embedding_service.generate_embedding(query)
-                    except Exception as ex:
-                        from src.rag.exceptions import EmbeddingGenerationError
-                        raise EmbeddingGenerationError(f"Embedding computation failed: {ex}") from ex
-                    embedding_latency = (time.time() - s) * 1000.0
-
-                auth_task = asyncio.to_thread(run_auth)
-                embed_task = asyncio.to_thread(run_embed)
-                
-                # Executing gathered tasks concurrently. Auth failures abort execution immediately.
-                await asyncio.gather(auth_task, embed_task)
-            else:
-                s = time.time()
-                self._validate_platform(clean_platform_id, db)
-                auth_latency = (time.time() - s) * 1000.0
-                
-                s = time.time()
-                try:
-                    query_vector = self.embedding_service.generate_embedding(query)
-                except Exception as ex:
-                    from src.rag.exceptions import EmbeddingGenerationError
-                    raise EmbeddingGenerationError(f"Embedding computation failed: {ex}") from ex
-                embedding_latency = (time.time() - s) * 1000.0
+            # 2. Embedding Generation (run only if validation succeeded)
+            s = time.time()
+            try:
+                query_vector = self.embedding_service.generate_embedding(query)
+            except Exception as ex:
+                from src.rag.exceptions import EmbeddingGenerationError
+                raise EmbeddingGenerationError(f"Embedding computation failed: {ex}") from ex
+            embedding_latency = (time.time() - s) * 1000.0
 
             # --- Redis Semantic Cache Lookup ---
             redis_start = time.time()

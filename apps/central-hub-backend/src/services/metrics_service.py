@@ -150,3 +150,28 @@ class MetricsService:
             logger.error(f"Failed to persist QueryRetrievalMetrics: {e}")
             self.db.rollback()
             return None
+
+    def log_gateway_metrics(
+        self,
+        platform_id: str | None,
+        status: str,
+        error_reason: str | None,
+        latency_ms: float
+    ):
+        """Persists gateway routing and validation metrics to the database."""
+        from src.models.analytics import GatewayMetrics
+        
+        metrics = GatewayMetrics(
+            platform_id=platform_id,
+            status=status,
+            error_reason=error_reason,
+            latency_ms=latency_ms
+        )
+        try:
+            self.db.add(metrics)
+            self.db.commit()
+            return metrics
+        except Exception as e:
+            logger.error(f"Failed to persist GatewayMetrics: {e}")
+            self.db.rollback()
+            return None

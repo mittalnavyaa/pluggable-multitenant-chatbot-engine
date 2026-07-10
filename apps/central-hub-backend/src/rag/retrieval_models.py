@@ -5,9 +5,10 @@ from typing import List, Dict, Any, Optional
 
 class QueryRequest(BaseModel):
     """API payload request to execute a RAG retrieval query."""
-    query: str = Field(..., min_length=1, max_length=4000, description="The user question to query.")
+    query: str = Field(..., min_length=1, description="The user question to query.")
     conversation_id: str = Field(..., description="UUID or string representing conversation thread.")
     chat_history: Optional[List[Dict[str, Any]]] = Field(default=None, description="Optional conversation context history.")
+    bot_id: Optional[str] = Field(default=None, description="Optional bot identifier context.")
 
 class RetrievedChunk(BaseModel):
     """Represents a single retrieved text segment and its metadata."""
