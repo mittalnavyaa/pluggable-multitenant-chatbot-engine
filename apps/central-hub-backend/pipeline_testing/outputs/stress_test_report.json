@@ -1,0 +1,235 @@
+{
+  "run_metadata": {
+    "timestamp": "2026-07-10T10:47:36.152686+00:00",
+    "report_version": "1.0.0",
+    "generator": "pipeline_testing.chat_stress.LatencyReporter"
+  },
+  "test_configuration": {
+    "base_url": "http://localhost:9999",
+    "concurrency": 3,
+    "total_requests": 5,
+    "timeout_s": 1.0,
+    "max_retries": 1,
+    "detect_streaming": true
+  },
+  "summary": {
+    "total_requests": 5,
+    "successful_requests": 0,
+    "failed_requests": 5,
+    "success_percentage": 0.0,
+    "error_percentage": 100.0,
+    "throughput_rps": 0.9137,
+    "total_wall_time_s": 5.472,
+    "fallback_triggered": 0
+  },
+  "latency_distribution": {
+    "avg_ms": 1011.234,
+    "min_ms": 1010.475,
+    "max_ms": 1011.934,
+    "p50_ms": 1011.058,
+    "p95_ms": 1011.908,
+    "p99_ms": 1011.929
+  },
+  "platform_isolation_validation": {
+    "violations": 0,
+    "passed": true,
+    "note": "All responses returned the expected platform_id."
+  },
+  "streaming_validation": {
+    "total_streaming_requests": 0,
+    "streaming_complete": 0,
+    "streaming_success_rate": 1.0,
+    "passed": true
+  },
+  "per_category_breakdown": {
+    "multilingual": {
+      "total": 2,
+      "success": 0,
+      "failure": 2,
+      "fallback": 0,
+      "avg_latency_ms": 1011.869,
+      "p95_ms": 1011.928
+    },
+    "out_of_context": {
+      "total": 1,
+      "success": 0,
+      "failure": 1,
+      "fallback": 0,
+      "avg_latency_ms": 1010.899,
+      "p95_ms": 1010.899
+    },
+    "in_domain": {
+      "total": 2,
+      "success": 0,
+      "failure": 2,
+      "fallback": 0,
+      "avg_latency_ms": 1010.767,
+      "p95_ms": 1011.029
+    }
+  },
+  "top_slowest_requests": [
+    {
+      "request_id": "req_102759e12d7f",
+      "query_id": "q_00004",
+      "category": "multilingual",
+      "query_text": "Main course mein kaise enroll kar sakta hoon?",
+      "status_code": 0,
+      "response_time_ms": 1011.934,
+      "success": false,
+      "response_length": 0,
+      "error_message": "Timeout: ",
+      "is_streaming": false,
+      "streaming_complete": false,
+      "fallback_triggered": false,
+      "platform_id_in_response": "",
+      "attempt": 2
+    },
+    {
+      "request_id": "req_1e041e2ea03c",
+      "query_id": "q_00005",
+      "category": "multilingual",
+      "query_text": "¿Cómo puedo solicitar una beca?",
+      "status_code": 0,
+      "response_time_ms": 1011.805,
+      "success": false,
+      "response_length": 0,
+      "error_message": "Timeout: ",
+      "is_streaming": false,
+      "streaming_complete": false,
+      "fallback_triggered": false,
+      "platform_id_in_response": "",
+      "attempt": 2
+    },
+    {
+      "request_id": "req_5675b240d45f",
+      "query_id": "q_00002",
+      "category": "in_domain",
+      "query_text": "What are the available programs?",
+      "status_code": 0,
+      "response_time_ms": 1011.058,
+      "success": false,
+      "response_length": 0,
+      "error_message": "Timeout: ",
+      "is_streaming": false,
+      "streaming_complete": false,
+      "fallback_triggered": false,
+      "platform_id_in_response": "",
+      "attempt": 2
+    },
+    {
+      "request_id": "req_695e4c61b507",
+      "query_id": "q_00003",
+      "category": "out_of_context",
+      "query_text": "Who won the FIFA World Cup in 2022?",
+      "status_code": 0,
+      "response_time_ms": 1010.899,
+      "success": false,
+      "response_length": 0,
+      "error_message": "Timeout: ",
+      "is_streaming": false,
+      "streaming_complete": false,
+      "fallback_triggered": false,
+      "platform_id_in_response": "",
+      "attempt": 2
+    },
+    {
+      "request_id": "req_1507f4dd8295",
+      "query_id": "q_00001",
+      "category": "in_domain",
+      "query_text": "Who is the head of the computer science department?",
+      "status_code": 0,
+      "response_time_ms": 1010.475,
+      "success": false,
+      "response_length": 0,
+      "error_message": "Timeout: ",
+      "is_streaming": false,
+      "streaming_complete": false,
+      "fallback_triggered": false,
+      "platform_id_in_response": "",
+      "attempt": 2
+    }
+  ],
+  "top_failed_requests": [
+    {
+      "request_id": "req_102759e12d7f",
+      "query_id": "q_00004",
+      "category": "multilingual",
+      "query_text": "Main course mein kaise enroll kar sakta hoon?",
+      "status_code": 0,
+      "response_time_ms": 1011.934,
+      "success": false,
+      "response_length": 0,
+      "error_message": "Timeout: ",
+      "is_streaming": false,
+      "streaming_complete": false,
+      "fallback_triggered": false,
+      "platform_id_in_response": "",
+      "attempt": 2
+    },
+    {
+      "request_id": "req_695e4c61b507",
+      "query_id": "q_00003",
+      "category": "out_of_context",
+      "query_text": "Who won the FIFA World Cup in 2022?",
+      "status_code": 0,
+      "response_time_ms": 1010.899,
+      "success": false,
+      "response_length": 0,
+      "error_message": "Timeout: ",
+      "is_streaming": false,
+      "streaming_complete": false,
+      "fallback_triggered": false,
+      "platform_id_in_response": "",
+      "attempt": 2
+    },
+    {
+      "request_id": "req_1507f4dd8295",
+      "query_id": "q_00001",
+      "category": "in_domain",
+      "query_text": "Who is the head of the computer science department?",
+      "status_code": 0,
+      "response_time_ms": 1010.475,
+      "success": false,
+      "response_length": 0,
+      "error_message": "Timeout: ",
+      "is_streaming": false,
+      "streaming_complete": false,
+      "fallback_triggered": false,
+      "platform_id_in_response": "",
+      "attempt": 2
+    },
+    {
+      "request_id": "req_1e041e2ea03c",
+      "query_id": "q_00005",
+      "category": "multilingual",
+      "query_text": "¿Cómo puedo solicitar una beca?",
+      "status_code": 0,
+      "response_time_ms": 1011.805,
+      "success": false,
+      "response_length": 0,
+      "error_message": "Timeout: ",
+      "is_streaming": false,
+      "streaming_complete": false,
+      "fallback_triggered": false,
+      "platform_id_in_response": "",
+      "attempt": 2
+    },
+    {
+      "request_id": "req_5675b240d45f",
+      "query_id": "q_00002",
+      "category": "in_domain",
+      "query_text": "What are the available programs?",
+      "status_code": 0,
+      "response_time_ms": 1011.058,
+      "success": false,
+      "response_length": 0,
+      "error_message": "Timeout: ",
+      "is_streaming": false,
+      "streaming_complete": false,
+      "fallback_triggered": false,
+      "platform_id_in_response": "",
+      "attempt": 2
+    }
+  ],
+  "multi_turn": false
+}
