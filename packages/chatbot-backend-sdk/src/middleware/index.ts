@@ -5,6 +5,10 @@ import { InvalidSignatureError, UnauthorizedProxyRequest, ProxyTimeoutError, Bac
 import { HMACSignatureProvider } from '../utils/crypto';
 import { type ChatbotSDK } from '../sdk';
 
+function sanitizeLog(value: unknown): string {
+  return String(value).replace(/[\r\n\x00-\x1f\x7f]/g, '');
+}
+
 export class SDKMiddleware implements MiddlewareContract {
   constructor(private readonly sdk: ChatbotSDK) {}
 
@@ -70,7 +74,7 @@ export class SDKMiddleware implements MiddlewareContract {
       const signatureHeaders = signer.sign(signPayload);
 
       // 3. Dispatch call to client proxy
-      console.log(`[envoy-proxy] Forwarding request for bot ${botId} (Stream: ${isStream})`);
+      console.log('[envoy-proxy] Forwarding request', { bot_id: sanitizeLog(botId), stream: isStream });
       
       const response = await client.queryChatbot(botId, prompt, isStream, signatureHeaders as any);
 
@@ -105,7 +109,7 @@ export class SDKMiddleware implements MiddlewareContract {
 
     } catch (err: any) {
       const duration = Date.now() - startTime;
-      console.error(`[envoy-proxy] Ingestion proxy routing failed after ${duration}ms: ${err.message}`);
+      console.error(`[envoy-proxy] Ingestion proxy routing failed after ${duration}ms: ${sanitizeLog(err.message)}`);
 
       // Map proxy exceptions to clean, safe browser responses
       let status = 500;
