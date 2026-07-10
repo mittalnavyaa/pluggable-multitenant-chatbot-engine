@@ -13,3 +13,16 @@ export * from './branding/branding-types';
 
 export type WidgetState = 'idle' | 'loading' | 'connected' | 'error';
 
+export type ConversationState =
+  | 'idle'
+  | 'sending'
+  | 'connecting'
+  | 'waiting'
+  | 'typing'
+  | 'streaming'
+  | 'completed'
+  | 'cancelled'
+  | 'failed'
+  | 'reconnecting';
+
+

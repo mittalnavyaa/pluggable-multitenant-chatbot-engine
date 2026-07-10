@@ -1,12 +1,19 @@
 // packages/chatbot-ui/src/index.ts
 
 import stylesText from './styles.css?raw';
-import { type Message, type BrandingConfig, type WidgetState } from './types';
+import { type Message, type BrandingConfig, type WidgetState, type ConversationState } from './types';
 import { brandingStore } from './branding/branding-store';
 import { CSSVariableMapper } from './branding/css-variable-mapper';
 import { DEFAULT_ENVOY_THEME } from './branding/default-theme';
 import { SSEClient } from './streaming/sse-client';
 import { MarkdownRenderer } from './streaming/markdown-renderer';
+
+import { UIStateMachine } from './ui/ui-state-machine';
+import { TypingIndicator } from './ui/typing-indicator';
+import { ErrorToastController, type ErrorType } from './ui/error-toast';
+import { AutoScrollController } from './ui/auto-scroll';
+import { RetryController } from './ui/retry-controller';
+import { LoadingStateController } from './ui/loading-state';
 
 export class EnvoyChatbot extends HTMLElement {
   private isOpen: boolean = false;
@@ -17,6 +24,15 @@ export class EnvoyChatbot extends HTMLElement {
   private apiBase: string = '';
   private currentStreamInterval: number | null = null;
   private activeSseClient: SSEClient | null = null;
+
+  // Interactive Response UI State Management properties
+  private conversationStateMachine = new UIStateMachine();
+  private typingIndicatorController!: TypingIndicator;
+  private errorToastController!: ErrorToastController;
+  private autoScrollController!: AutoScrollController;
+  private retryController = new RetryController();
+  private loadingStateController!: LoadingStateController;
+  private notificationsContainerEl!: HTMLDivElement;
 
   // DOM Elements refs inside Shadow DOM
   private containerEl!: HTMLDivElement;
@@ -34,6 +50,7 @@ export class EnvoyChatbot extends HTMLElement {
     super();
     this.attachShadow({ mode: 'open' });
   }
+
 
   static get observedAttributes() {
     return ['data-bot-id', 'data-api-base'];
@@ -57,6 +74,35 @@ export class EnvoyChatbot extends HTMLElement {
     // Build DOM structure
     this.renderStructure();
 
+    // Initialize Interactive UI Controller systems
+    this.notificationsContainerEl = this.shadowRoot!.getElementById('envoy-notifications') as HTMLDivElement;
+    this.typingIndicatorController = new TypingIndicator(this.typingIndicatorEl);
+    this.errorToastController = new ErrorToastController(
+      this.notificationsContainerEl,
+      () => this.branding
+    );
+    this.autoScrollController = new AutoScrollController(this.messagesContainerEl);
+
+    const statusDot = this.shadowRoot!.getElementById('envoy-status-dot') as HTMLSpanElement;
+    this.loadingStateController = new LoadingStateController(
+      this.inputEl,
+      this.sendBtnEl,
+      statusDot
+    );
+
+    // Bind state machine listeners
+    this.conversationStateMachine.addListener((state) => {
+      this.loadingStateController.updateState(state);
+
+      if (state === 'typing') {
+        this.typingIndicatorController.show();
+      } else {
+        this.typingIndicatorController.hide();
+      }
+
+      this.state = (state === 'failed') ? 'error' : (state === 'idle' ? 'idle' : 'loading');
+    });
+
     // Setup store listener
     brandingStore.addListener(this.onBrandingUpdate.bind(this));
 
@@ -66,6 +112,7 @@ export class EnvoyChatbot extends HTMLElement {
     // Setup event listeners
     this.setupListeners();
   }
+
 
   disconnectedCallback() {
     this.cleanup();
@@ -120,23 +167,42 @@ export class EnvoyChatbot extends HTMLElement {
       clearInterval(this.currentStreamInterval);
       this.currentStreamInterval = null;
     }
-    this.typingIndicatorEl.classList.add('hidden');
-    this.state = 'idle';
+    
+    this.conversationStateMachine.transition({ type: 'RESET' });
+    this.retryController.clear();
+    if (this.errorToastController) {
+      this.errorToastController.dismiss();
+    }
   }
 
-  public async sendMessage(text: string) {
-    if (!text.trim() || this.state === 'loading') return;
+
+  public async sendMessage(text: string, isRetry = false) {
+    const currentState = this.conversationStateMachine.getState();
+    const isWorking = ['sending', 'connecting', 'waiting', 'typing', 'streaming', 'reconnecting'].includes(currentState);
+    if (!text.trim() || isWorking) return;
     
-    // Append User Message
-    const userMsg: Message = {
-      id: `user-${Date.now()}`,
-      sender: 'user',
-      text: text,
-      timestamp: new Date().toISOString()
-    };
-    this.messages.push(userMsg);
-    this.appendMessageDOM(userMsg);
-    this.scrollToBottom();
+    // Clear any existing error toast when sending a message
+    if (this.errorToastController) {
+      this.errorToastController.dismiss();
+    }
+
+    if (!isRetry) {
+      // Cache the prompt for potential future retries
+      this.retryController.saveLastPrompt(text);
+
+      // Append User Message
+      const userMsg: Message = {
+        id: `user-${Date.now()}`,
+        sender: 'user',
+        text: text,
+        timestamp: new Date().toISOString()
+      };
+      this.messages.push(userMsg);
+      this.appendMessageDOM(userMsg);
+      if (this.autoScrollController) {
+        this.autoScrollController.forceScroll();
+      }
+    }
 
     // Save history if enabled
     if (this.branding.featureFlags.conversationHistory) {
@@ -152,9 +218,13 @@ export class EnvoyChatbot extends HTMLElement {
       composed: true 
     }));
 
-    // Trigger typing response simulation
-    await this.generateBotResponse(text);
+    // Trigger state machine transition: SEND
+    this.conversationStateMachine.transition({ type: 'SEND' });
+
+    // Trigger responses
+    await this.generateBotResponse(text, isRetry);
   }
+
 
   public destroy() {
     this.cleanup();
@@ -203,7 +273,7 @@ export class EnvoyChatbot extends HTMLElement {
         <!-- Header -->
         <header id="envoy-header" class="px-4 py-3 flex items-center justify-between text-white shadow-md">
           <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse"></span>
+            <span id="envoy-status-dot" class="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse"></span>
             <span id="envoy-title" class="font-semibold truncate max-w-[200px]">${this.branding.content.widgetTitle}</span>
           </div>
           <div class="flex items-center gap-1">
@@ -222,7 +292,11 @@ export class EnvoyChatbot extends HTMLElement {
           </div>
         </header>
 
+        <!-- Notification Toast Container -->
+        <div id="envoy-notifications" class="absolute top-14 left-4 right-4 z-[1000] pointer-events-none flex flex-col gap-2"></div>
+
         <!-- Message Area -->
+
         <div id="envoy-messages" class="flex-1 p-4 overflow-y-auto bg-lt-bg dark:bg-dk-bg flex flex-col gap-3 envoy-messages-container">
           <!-- Dynamically populated -->
         </div>
@@ -493,8 +567,33 @@ export class EnvoyChatbot extends HTMLElement {
     this.messagesContainerEl.appendChild(bubble);
   }
 
-  private async generateBotResponse(userPrompt: string) {
-    this.state = 'loading';
+  private mapErrorToType(errorMsg: string, streamSucceeded: boolean): ErrorType {
+    if (streamSucceeded) {
+      return 'interrupted';
+    }
+    const msg = errorMsg.toLowerCase();
+    if (msg.includes('timeout') || msg.includes('time out')) {
+      return 'timeout';
+    }
+    if (msg.includes('401') || msg.includes('403') || msg.includes('auth') || msg.includes('unauthorized')) {
+      return 'auth';
+    }
+    if (msg.includes('502') || msg.includes('503') || msg.includes('504') || msg.includes('unavailable')) {
+      return 'unavailable';
+    }
+    if (msg.includes('network') || msg.includes('fetch') || msg.includes('failed to fetch') || msg.includes('typeerror')) {
+      return 'network';
+    }
+    return 'unexpected';
+  }
+
+  private async generateBotResponse(userPrompt: string, isRetry = false) {
+    // Transition UI State: CONNECT (or RECONNECT if retrying from fail/reconnect)
+    if (isRetry) {
+      this.conversationStateMachine.transition({ type: 'RECONNECT' });
+    } else {
+      this.conversationStateMachine.transition({ type: 'CONNECT' });
+    }
 
     // Disconnect any existing active client
     if (this.activeSseClient) {
@@ -507,10 +606,13 @@ export class EnvoyChatbot extends HTMLElement {
       this.currentStreamInterval = null;
     }
 
-    // Check typing animation flag
+    // Move to waiting / typing state
+    this.conversationStateMachine.transition({ type: 'CONNECTED' });
     if (this.branding.featureFlags.typingAnimation) {
-      this.typingIndicatorEl.classList.remove('hidden');
-      this.scrollToBottom();
+      this.conversationStateMachine.transition({ type: 'SHOW_TYPING' });
+    }
+    if (this.autoScrollController) {
+      this.autoScrollController.scroll();
     }
 
     let streamSucceeded = false;
@@ -534,10 +636,9 @@ export class EnvoyChatbot extends HTMLElement {
           prompt: userPrompt,
           onStatusChange: (status) => {
             if (status === 'streaming') {
-              this.typingIndicatorEl.classList.add('hidden');
-            } else if (status === 'completed' || status === 'failed') {
-              this.state = 'idle';
-              this.typingIndicatorEl.classList.add('hidden');
+              this.conversationStateMachine.transition({ type: 'RECEIVE_TOKEN' });
+            } else if (status === 'completed') {
+              this.conversationStateMachine.transition({ type: 'COMPLETE_STREAM' });
               if (botMsg.isStreaming) {
                 botMsg.isStreaming = false;
                 if (bubble) {
@@ -548,6 +649,8 @@ export class EnvoyChatbot extends HTMLElement {
           },
           onToken: (token) => {
             streamSucceeded = true;
+            this.conversationStateMachine.transition({ type: 'RECEIVE_TOKEN' });
+
             if (!bubbleAppended) {
               bubbleAppended = true;
               this.messages.push(botMsg);
@@ -558,10 +661,13 @@ export class EnvoyChatbot extends HTMLElement {
             if (bubble) {
               bubble.innerHTML = MarkdownRenderer.render(botMsg.text);
             }
-            this.scrollToBottom();
+            if (this.autoScrollController) {
+              this.autoScrollController.scroll();
+            }
           },
           onComplete: () => {
             this.activeSseClient = null;
+            this.conversationStateMachine.transition({ type: 'COMPLETE_STREAM' });
             if (this.branding.featureFlags.conversationHistory) {
               this.saveHistory();
             }
@@ -575,28 +681,38 @@ export class EnvoyChatbot extends HTMLElement {
             this.activeSseClient = null;
             console.error('[envoy-chatbot] SSE Streaming error:', errorMsg);
 
-            // Fallback if no tokens were ever received
-            if (!streamSucceeded) {
-              this.runSimulatedResponse(userPrompt);
-            } else {
-              if (bubble) {
-                botMsg.text += `\n\n*Error: Connection lost. ${errorMsg}*`;
-                bubble.innerHTML = MarkdownRenderer.render(botMsg.text);
-                bubble.classList.remove('envoy-streaming');
-              }
-              this.scrollToBottom();
+            // Transition UI state to failed
+            this.conversationStateMachine.transition({ type: 'FAIL_STREAM', error: errorMsg });
+
+            // Display non-blocking error toast with a retry trigger
+            const errorType = this.mapErrorToType(errorMsg, streamSucceeded);
+            this.errorToastController.show(errorType, () => {
+              this.sendMessage(userPrompt, true);
+            });
+
+            // If some tokens were streamed, clean up stream indicator
+            if (streamSucceeded && bubble) {
+              botMsg.isStreaming = false;
+              bubble.classList.remove('envoy-streaming');
+            }
+            if (this.autoScrollController) {
+              this.autoScrollController.scroll();
             }
           }
         });
 
         await this.activeSseClient.connect();
         return;
-      } catch (err) {
+      } catch (err: any) {
         console.warn('[envoy-chatbot] Failed establishing stream, falling back.', err);
+        // Transition to failed state and show toast
+        this.conversationStateMachine.transition({ type: 'FAIL_STREAM', error: err.message || 'Connection failed' });
+        const errorType = this.mapErrorToType(err.message || '', false);
+        this.errorToastController.show(errorType, () => {
+          this.sendMessage(userPrompt, true);
+        });
       }
-    }
-
-    if (!streamSucceeded) {
+    } else {
       await this.runSimulatedResponse(userPrompt);
     }
   }
@@ -605,7 +721,6 @@ export class EnvoyChatbot extends HTMLElement {
     if (this.branding.featureFlags.typingAnimation) {
       await new Promise(resolve => setTimeout(resolve, 800));
     }
-    this.typingIndicatorEl.classList.add('hidden');
 
     const botMsg: Message = {
       id: `bot-${Date.now()}`,
@@ -618,6 +733,7 @@ export class EnvoyChatbot extends HTMLElement {
     const reply = this.getSimulatedReply(userPrompt);
 
     if (this.branding.featureFlags.streamingResponses) {
+      this.conversationStateMachine.transition({ type: 'RECEIVE_TOKEN' });
       this.messages.push(botMsg);
       this.appendMessageDOM(botMsg);
       const bubble = this.shadowRoot!.getElementById(`msg-${botMsg.id}`) as HTMLDivElement;
@@ -630,7 +746,9 @@ export class EnvoyChatbot extends HTMLElement {
             bubble.innerHTML = MarkdownRenderer.render(botMsg.text);
           }
           wordIndex++;
-          this.scrollToBottom();
+          if (this.autoScrollController) {
+            this.autoScrollController.scroll();
+          }
         } else {
           if (this.currentStreamInterval) {
             clearInterval(this.currentStreamInterval);
@@ -640,7 +758,7 @@ export class EnvoyChatbot extends HTMLElement {
           if (bubble) {
             bubble.classList.remove('envoy-streaming');
           }
-          this.state = 'idle';
+          this.conversationStateMachine.transition({ type: 'COMPLETE_STREAM' });
 
           if (this.branding.featureFlags.conversationHistory) {
             this.saveHistory();
@@ -658,8 +776,10 @@ export class EnvoyChatbot extends HTMLElement {
       botMsg.isStreaming = false;
       this.messages.push(botMsg);
       this.appendMessageDOM(botMsg);
-      this.scrollToBottom();
-      this.state = 'idle';
+      if (this.autoScrollController) {
+        this.autoScrollController.forceScroll();
+      }
+      this.conversationStateMachine.transition({ type: 'COMPLETE_STREAM' });
 
       if (this.branding.featureFlags.conversationHistory) {
         this.saveHistory();
@@ -674,6 +794,7 @@ export class EnvoyChatbot extends HTMLElement {
   }
 
   private getSimulatedReply(prompt: string): string {
+
     const q = prompt.toLowerCase();
     if (q.includes('hello') || q.includes('hi')) {
       return `Hello there! I am your Envoy AI agent. How can I help you configure or manage your chatbot workspace today?`;
@@ -699,6 +820,9 @@ export class EnvoyChatbot extends HTMLElement {
     if (this.activeSseClient) {
       this.activeSseClient.disconnect();
       this.activeSseClient = null;
+    }
+    if (this.errorToastController) {
+      this.errorToastController.dismiss();
     }
   }
 }

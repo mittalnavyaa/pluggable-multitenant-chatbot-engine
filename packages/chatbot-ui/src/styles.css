@@ -74,3 +74,70 @@
   50% { opacity: 0; }
 }
 
+/* Spinner Animation Keyframes (standard fallback) */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Error Toast Styling */
+.envoy-error-toast {
+  background-color: var(--envoy-surface, #ffffff);
+  border: 1px solid var(--envoy-error, #dc2626);
+  color: var(--envoy-text, #0f172a);
+}
+
+.envoy-error-toast svg {
+  color: var(--envoy-error, #dc2626);
+}
+
+.envoy-toast-retry-btn {
+  background-color: var(--envoy-error, #dc2626);
+  color: #ffffff;
+}
+
+.envoy-toast-retry-btn:hover {
+  opacity: 0.9;
+}
+
+.envoy-toast-dismiss-btn {
+  border-color: var(--envoy-border, #e2e8f0);
+  color: var(--envoy-muted, #64748b);
+  background-color: transparent;
+}
+
+.envoy-toast-dismiss-btn:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Accessibility: Support Reduced Motion Preferences */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-delay: -1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    background-attachment: scroll !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+  
+  .animate-bounce,
+  .animate-pulse,
+  .animate-spin,
+  .envoy-streaming > p:last-child::after,
+  .envoy-streaming:not(:has(p))::after {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}
+
+
