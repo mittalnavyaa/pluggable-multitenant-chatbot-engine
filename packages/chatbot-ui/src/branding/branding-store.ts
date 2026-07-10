@@ -89,7 +89,7 @@ export class BrandingStore {
         this.config = BrandingValidator.validate(rawConfig);
         this.state = 'connected';
       } else {
-        console.warn(`[envoy-branding] Fetch failed with status ${response.status}. Using default theme.`);
+        console.warn(`[envoy-branding] Fetch failed with status ${Number(response.status)}. Using default theme.`);
         this.config = { ...DEFAULT_ENVOY_THEME };
         this.state = 'connected';
       }

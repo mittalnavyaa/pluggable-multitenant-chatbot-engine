@@ -3,6 +3,7 @@
 import { createChatbotSDK } from '../index';
 import { HMACSignatureProvider } from '../utils/crypto';
 import { SDKConfigurationError } from '../errors';
+import * as crypto from 'crypto';
 
 describe('Chatbot SDK Security & Proxy Core', () => {
   const apiKey = 'test_api_key_123';
@@ -73,7 +74,6 @@ describe('Chatbot SDK Security & Proxy Core', () => {
       
       // Compute signature manually
       const message = `${oldTimestamp}.${nonce}.${testPayload}`;
-      const crypto = require('crypto');
       const signature = crypto
         .createHmac('sha256', signingSecret)
         .update(message)
