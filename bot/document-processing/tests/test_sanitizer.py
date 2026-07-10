@@ -154,3 +154,97 @@ def test_llm_failures_are_returned(
 
     assert result.success is False
     assert expected in result.errors[0]
+
+
+class ChunkRecordingProvider(BaseLLMProvider):
+    provider_name = "recording-provider"
+    model = "recording-model"
+
+    def __init__(self, max_chunk_chars: int = 50) -> None:
+        self.chunks_received = []
+        from dataclasses import dataclass
+        @dataclass
+        class MockSettings:
+            max_chunk_chars: int
+        self.settings = MockSettings(max_chunk_chars=max_chunk_chars)
+
+    def clean_markdown(
+        self,
+        raw_text: str,
+        system_prompt: str,
+        cleaning_prompt: str,
+    ) -> str:
+        self.chunks_received.append(raw_text)
+        return f"CLEANED: {raw_text.strip()}"
+
+
+def test_split_text_into_chunks_with_page_markers(tmp_path: Path) -> None:
+    provider = ChunkRecordingProvider(max_chunk_chars=75)
+    sanitizer = _sanitizer(tmp_path, provider)
+
+    # 3 pages, total size ~130 chars. Pages 1 and 2 should group together (37 + 32 = 69 chars < 75)
+    # Page 3 will go into a separate chunk.
+    raw_text = (
+        "<!-- PAGE_NUMBER: 1 -->\nPage 1 text.\n"
+        "<!-- PAGE_NUMBER: 2 -->\nPage 2.\n"
+        "<!-- PAGE_NUMBER: 3 -->\nPage 3 content is here."
+    )
+
+    chunks = sanitizer._split_text_into_chunks(raw_text)
+    assert len(chunks) == 2
+    assert chunks[0] == "<!-- PAGE_NUMBER: 1 -->\nPage 1 text.\n<!-- PAGE_NUMBER: 2 -->\nPage 2.\n"
+    assert chunks[1] == "<!-- PAGE_NUMBER: 3 -->\nPage 3 content is here."
+
+
+def test_split_text_into_chunks_large_page_fallback(tmp_path: Path) -> None:
+    provider = ChunkRecordingProvider(max_chunk_chars=30)
+    sanitizer = _sanitizer(tmp_path, provider)
+
+    # Single page of 70 characters, exceeds max_chunk_chars of 30.
+    # Should split by lines/paragraphs.
+    raw_text = "<!-- PAGE_NUMBER: 1 -->\nLine one is here.\nLine two is here.\nLine three."
+
+    chunks = sanitizer._split_text_into_chunks(raw_text)
+    assert len(chunks) > 1
+    # Each chunk should be within max_chunk_chars
+    for chunk in chunks:
+        assert len(chunk) <= 30
+    # Reassembled chunks should equal original text
+    assert "".join(chunks) == raw_text
+
+
+def test_split_text_into_chunks_no_page_markers(tmp_path: Path) -> None:
+    provider = ChunkRecordingProvider(max_chunk_chars=40)
+    sanitizer = _sanitizer(tmp_path, provider)
+
+    raw_text = "First paragraph.\nSecond paragraph.\nThird paragraph is much longer than others."
+
+    chunks = sanitizer._split_text_into_chunks(raw_text)
+    assert len(chunks) > 1
+    for chunk in chunks:
+        assert len(chunk) <= 40
+    assert "".join(chunks) == raw_text
+
+
+def test_sanitize_processes_multiple_chunks_and_joins(tmp_path: Path) -> None:
+    provider = ChunkRecordingProvider(max_chunk_chars=50)
+    sanitizer = _sanitizer(tmp_path, provider)
+
+    raw_text = (
+        "<!-- PAGE_NUMBER: 1 -->\nPage one content.\n"
+        "<!-- PAGE_NUMBER: 2 -->\nPage two is here."
+    )
+
+    result = sanitizer.sanitize(_result(raw_text, "multi_page.pdf"))
+
+    assert result.success is True
+    # Verify both chunks were passed to provider
+    assert len(provider.chunks_received) == 2
+    # Verify the output is joined by double newlines
+    expected_markdown = (
+        "CLEANED: <!-- PAGE_NUMBER: 1 -->\nPage one content.\n\n"
+        "CLEANED: <!-- PAGE_NUMBER: 2 -->\nPage two is here."
+    )
+    assert result.markdown == expected_markdown
+    assert (tmp_path / "multi_page.md").exists()
+

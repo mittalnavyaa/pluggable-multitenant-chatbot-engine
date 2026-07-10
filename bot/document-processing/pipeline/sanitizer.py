@@ -1,8 +1,9 @@
-﻿"""AI Markdown sanitization pipeline."""
+"""AI Markdown sanitization pipeline."""
 
 from __future__ import annotations
 
 from pathlib import Path
+import re
 from time import perf_counter
 
 from llm.base_provider import BaseLLMProvider, LLMProviderError
@@ -58,11 +59,23 @@ class MarkdownSanitizer:
             )
 
         try:
-            markdown = self.provider.clean_markdown(
-                raw_text=extraction_result.raw_text,
-                system_prompt=self._load_prompt("system_prompt.md"),
-                cleaning_prompt=self._load_prompt("cleaning_prompt.md"),
-            )
+            chunks = self._split_text_into_chunks(extraction_result.raw_text)
+            cleaned_markdowns = []
+            system_prompt = self._load_prompt("system_prompt.md")
+            cleaning_prompt = self._load_prompt("cleaning_prompt.md")
+
+            for idx, chunk in enumerate(chunks, 1):
+                self.logger.info(
+                    f"Sanitizing chunk {idx}/{len(chunks)} ({len(chunk)} characters)..."
+                )
+                cleaned_chunk = self.provider.clean_markdown(
+                    raw_text=chunk,
+                    system_prompt=system_prompt,
+                    cleaning_prompt=cleaning_prompt,
+                )
+                cleaned_markdowns.append(cleaned_chunk)
+
+            markdown = "\n\n".join(cleaned_markdowns)
             self.writer.write(markdown, extraction_result.file_name)
             processing_time = perf_counter() - started_at
 
@@ -116,3 +129,71 @@ class MarkdownSanitizer:
             warnings=warnings,
             errors=errors,
         )
+
+    def _split_text_into_chunks(self, raw_text: str) -> list[str]:
+        settings = getattr(self.provider, "settings", None)
+        max_chars = getattr(settings, "max_chunk_chars", 12000) if settings else 12000
+
+        parts = re.split(r"(<!-- PAGE_NUMBER: \d+ -->)", raw_text)
+
+        pages = []
+        if len(parts) > 1:
+            preamble = parts[0].strip()
+            if preamble:
+                pages.append(preamble)
+            for i in range(1, len(parts), 2):
+                marker = parts[i]
+                content = parts[i + 1] if i + 1 < len(parts) else ""
+                pages.append(marker + content)
+        else:
+            pages.append(raw_text)
+
+        chunks = []
+        current_chunk = []
+        current_len = 0
+
+        for page in pages:
+            page_len = len(page)
+            if page_len > max_chars:
+                # Flush current chunk
+                if current_chunk:
+                    chunks.append("".join(current_chunk))
+                    current_chunk = []
+                    current_len = 0
+
+                # Split large page into line-based sub-chunks
+                lines = page.splitlines(keepends=True)
+                sub_chunk = []
+                sub_len = 0
+                for line in lines:
+                    if len(line) > max_chars:
+                        if sub_chunk:
+                            chunks.append("".join(sub_chunk))
+                            sub_chunk = []
+                            sub_len = 0
+                        for i in range(0, len(line), max_chars):
+                            chunks.append(line[i : i + max_chars])
+                    elif sub_len + len(line) > max_chars:
+                        if sub_chunk:
+                            chunks.append("".join(sub_chunk))
+                        sub_chunk = [line]
+                        sub_len = len(line)
+                    else:
+                        sub_chunk.append(line)
+                        sub_len += len(line)
+                if sub_chunk:
+                    chunks.append("".join(sub_chunk))
+            else:
+                if current_len + page_len > max_chars:
+                    chunks.append("".join(current_chunk))
+                    current_chunk = [page]
+                    current_len = page_len
+                else:
+                    current_chunk.append(page)
+                    current_len += page_len
+
+        if current_chunk:
+            chunks.append("".join(current_chunk))
+
+        return chunks
+
