@@ -27,6 +27,10 @@ class InternalProduct(Base):
         JSONB,
         nullable=True
     )
+    status = Column(
+        String(20),
+        server_default=text("'ACTIVE'")
+    )
     created_at = Column(
         DateTime,
         server_default=text("CURRENT_TIMESTAMP")

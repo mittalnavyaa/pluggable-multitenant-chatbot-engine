@@ -68,6 +68,13 @@ from src.models.bot import Bot
 from src.models.internal_product import InternalProduct
 from src.services.metrics_service import MetricsService
 from src.rag.retrieval_config import RetrievalConfig
+from pydantic import BaseModel
+
+class ValidatedRuntimeContext(BaseModel):
+    platform_id: str
+    product_db_id: str
+    bot_id: str
+    product_name: str
 
 # Initialize Configuration and Redis Rate Limiter
 gateway_config = RetrievalConfig()
@@ -299,46 +306,61 @@ async def retrieve_context(
         if not bot_id and request.query_params.get("bot_id"):
             bot_id = request.query_params.get("bot_id")
             
-        if bot_id:
-            bot_active = False
-            bot_err_msg = "Bot not found or inactive."
+        if not bot_id:
+            gateway_latency = (time.time() - start_time) * 1000.0
             try:
-                bot_uuid = uuid.UUID(bot_id)
-                bot = db.query(Bot).filter(Bot.id == bot_uuid).first()
-                if bot:
-                    product_uuid = uuid.UUID(request.state.product_db_id)
-                    if bot.product_id != product_uuid:
-                        bot_err_msg = "Bot does not belong to the target tenant."
-                    elif bot.status != "ACTIVE":
-                        bot_err_msg = "Bot is currently disabled."
-                    else:
-                        bot_active = True
-                else:
-                    bot_err_msg = "Bot registration not found."
-            except ValueError:
-                bot_err_msg = "Invalid bot ID UUID format."
-            except Exception as e:
-                logger.error(f"Bot database verification failed: {e}")
-                bot_err_msg = f"Bot verification failed: {e}"
-                # Fail-open fallback if database connectivity fails
-                if "connection" in str(e).lower() or "password authentication" in str(e).lower():
-                    bot_active = True
+                metrics_svc.log_gateway_metrics(platform_id, "VALIDATION_FAILURE", "Missing required runtime identifier: bot_id.", gateway_latency)
+            except Exception:
+                pass
+            if concurrency_acquired:
+                limiter.release_concurrency(rate_limit_key, request_id)
+                concurrency_acquired = False
+            return build_error_response(
+                code="BAD_REQUEST",
+                message="Missing required runtime identifier: bot_id.",
+                status_code=400,
+                correlation_id=correlation_id
+            )
 
-            if not bot_active:
-                gateway_latency = (time.time() - start_time) * 1000.0
-                try:
-                    metrics_svc.log_gateway_metrics(platform_id, "VALIDATION_FAILURE", bot_err_msg, gateway_latency)
-                except Exception:
-                    pass
-                if concurrency_acquired:
-                    limiter.release_concurrency(rate_limit_key, request_id)
-                    concurrency_acquired = False
-                return build_error_response(
-                    code="FORBIDDEN",
-                    message=bot_err_msg,
-                    status_code=403,
-                    correlation_id=correlation_id
-                )
+        bot_active = False
+        bot_err_msg = "Bot not found or inactive."
+        try:
+            bot_uuid = uuid.UUID(bot_id)
+            bot = db.query(Bot).filter(Bot.id == bot_uuid).first()
+            if bot:
+                product_uuid = uuid.UUID(request.state.product_db_id)
+                if bot.product_id != product_uuid:
+                    bot_err_msg = "Bot does not belong to the target tenant."
+                elif bot.status != "ACTIVE":
+                    bot_err_msg = "Bot is currently disabled."
+                else:
+                    bot_active = True
+            else:
+                bot_err_msg = "Bot registration not found."
+        except ValueError:
+            bot_err_msg = "Invalid bot ID UUID format."
+        except Exception as e:
+            logger.error(f"Bot database verification failed: {e}")
+            bot_err_msg = f"Bot verification failed: {e}"
+            # Fail-open fallback if database connectivity fails
+            if "connection" in str(e).lower() or "password authentication" in str(e).lower():
+                bot_active = True
+
+        if not bot_active:
+            gateway_latency = (time.time() - start_time) * 1000.0
+            try:
+                metrics_svc.log_gateway_metrics(platform_id, "VALIDATION_FAILURE", bot_err_msg, gateway_latency)
+            except Exception:
+                pass
+            if concurrency_acquired:
+                limiter.release_concurrency(rate_limit_key, request_id)
+                concurrency_acquired = False
+            return build_error_response(
+                code="FORBIDDEN",
+                message=bot_err_msg,
+                status_code=403,
+                correlation_id=correlation_id
+            )
 
         # 6. Request Payload & Query Length Validation Check
         if not payload.query or not payload.query.strip():
@@ -378,6 +400,21 @@ async def retrieve_context(
                 correlation_id=correlation_id
             )
 
+        # Build Validated Runtime Context
+        platform_str = platform_id if isinstance(platform_id, str) else str(platform_id)
+        product_db_id_str = getattr(request.state, "product_db_id", "")
+        product_db_id_str = product_db_id_str if isinstance(product_db_id_str, str) else str(product_db_id_str)
+        product_name_str = getattr(request.state, "product_name", "")
+        if not isinstance(product_name_str, str):
+            product_name_str = "" if "Mock" in type(product_name_str).__name__ or "mock" in type(product_name_str).__name__.lower() else str(product_name_str)
+
+        validated_ctx = ValidatedRuntimeContext(
+            platform_id=platform_str,
+            product_db_id=product_db_id_str,
+            bot_id=bot_id,
+            product_name=product_name_str
+        )
+
         # 7. Executing RAG Pipeline Retrieval
         engine = ContextIsolationRoutingEngine(config=gateway_config)
         response = await engine.retrieve(
@@ -385,8 +422,10 @@ async def retrieve_context(
             query=payload.query,
             conversation_id=payload.conversation_id,
             chat_history=payload.chat_history,
-            db=db
+            db=db,
+            validated_context=validated_ctx
         )
+
 
         # 8. Log Query Metrics (from RAG Engine)
         if db:

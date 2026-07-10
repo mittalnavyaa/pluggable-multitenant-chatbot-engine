@@ -74,8 +74,16 @@ def startup():
                 ) THEN
                     ALTER TABLE bots ADD CONSTRAINT bots_product_id_fkey FOREIGN KEY (product_id) REFERENCES internal_products(id) ON DELETE CASCADE;
                 END IF;
+
+                -- 4. Add status column to internal_products if not exists
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns WHERE table_name = 'internal_products' AND column_name = 'status'
+                ) THEN
+                    ALTER TABLE internal_products ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';
+                END IF;
             END $$;
         """))
+        db.execute(text("UPDATE internal_products SET status = 'ACTIVE' WHERE status IS NULL;"))
         db.commit()
     except Exception as e:
         db.rollback()

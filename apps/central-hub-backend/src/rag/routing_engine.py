@@ -50,7 +50,8 @@ class ContextIsolationRoutingEngine:
         query: str,
         conversation_id: str,
         chat_history: Optional[List[Dict[str, Any]]] = None,
-        db: Optional[Any] = None
+        db: Optional[Any] = None,
+        validated_context: Optional[Any] = None
     ) -> RuntimeResponse:
         """
         Executes the optimized isolation retrieval pipeline.
@@ -59,6 +60,10 @@ class ContextIsolationRoutingEngine:
         """
         start_time = time.time()
         
+        # If validated context is provided, trust and extract platform_id from it
+        if validated_context is not None:
+            platform_id = validated_context.platform_id
+
         # --- Stage 1: Input Validation ---
         if not platform_id or not isinstance(platform_id, str) or not platform_id.strip():
             logger.error("Request rejected: missing or blank platform_id.")
@@ -87,14 +92,16 @@ class ContextIsolationRoutingEngine:
             embedding_latency = 0.0
             query_vector = None
 
-            # 1. Platform Validation (run first)
+            # 1. Platform Validation (run first, only if not already validated)
             s = time.time()
-            self._validate_platform(clean_platform_id, db)
+            if validated_context is None:
+                self._validate_platform(clean_platform_id, db)
             auth_latency = (time.time() - s) * 1000.0
 
             # 2. Embedding Generation (run only if validation succeeded)
             s = time.time()
             try:
+
                 query_vector = self.embedding_service.generate_embedding(query)
             except Exception as ex:
                 from src.rag.exceptions import EmbeddingGenerationError
