@@ -1,0 +1,95 @@
+{
+  "_comment": "Sample widget configuration reference for @envoy/chatbot-ui",
+  "_description": "This file documents how to configure the <envoy-chatbot> Web Component. It is a reference document, not a runtime config file.",
+
+  "htmlEmbed": {
+    "_comment": "Minimal embed — paste this into any HTML page after loading the widget bundle",
+    "scriptTag": "<script src=\"/path/to/chatbot-ui.js\"></script>",
+    "elementTag": "<envoy-chatbot data-bot-id=\"tensor\" data-api-base=\"https://your-host-server.com\"></envoy-chatbot>",
+
+    "attributes": {
+      "data-bot-id": {
+        "type": "string",
+        "required": true,
+        "description": "The product/tenant ID. The widget fetches branding for this ID from GET /api/v1/products/:botId on startup. Must match a product_id in your backend.",
+        "example": "tensor"
+      },
+      "data-api-base": {
+        "type": "string",
+        "required": false,
+        "default": "window.location.origin",
+        "description": "The base URL of your host server (Express or FastAPI). All widget API calls are sent to this origin. Omit this attribute to use the same origin as the page.",
+        "example": "https://your-host-server.com"
+      }
+    }
+  },
+
+  "javascriptAPI": {
+    "_comment": "Public methods available on the <envoy-chatbot> element after it is mounted",
+    "getElement": "const widget = document.getElementById('envoy-widget');",
+
+    "methods": {
+      "open()": {
+        "description": "Opens the chat window. Does nothing if already open.",
+        "example": "widget.open();"
+      },
+      "close()": {
+        "description": "Closes the chat window. Does nothing if already closed.",
+        "example": "widget.close();"
+      },
+      "toggle()": {
+        "description": "Toggles the chat window open/closed.",
+        "example": "widget.toggle();"
+      },
+      "sendMessage(text)": {
+        "description": "Programmatically sends a message as the user. Useful for pre-filling a support topic.",
+        "parameters": {
+          "text": "string — The message text to send."
+        },
+        "example": "widget.sendMessage('I need help with my order.');"
+      },
+      "resetConversation()": {
+        "description": "Clears all messages and resets the conversation to the welcome state. Also clears localStorage history if conversationHistory feature flag is enabled.",
+        "example": "widget.resetConversation();"
+      },
+      "destroy()": {
+        "description": "Cleans up all event listeners and removes the element from the DOM. Use this when unmounting the widget from a single-page application.",
+        "example": "widget.destroy();"
+      }
+    },
+
+    "customEvents": {
+      "_comment": "Events fired by the widget. Listen with addEventListener on the element or any ancestor.",
+      "envoy-chat-opened": {
+        "description": "Fired when the chat window opens.",
+        "detail": null,
+        "example": "widget.addEventListener('envoy-chat-opened', () => console.log('Chat opened'));"
+      },
+      "envoy-chat-closed": {
+        "description": "Fired when the chat window closes.",
+        "detail": null,
+        "example": "widget.addEventListener('envoy-chat-closed', () => console.log('Chat closed'));"
+      },
+      "envoy-message-sent": {
+        "description": "Fired when the user sends a message.",
+        "detail": { "text": "string — The message the user sent." },
+        "example": "widget.addEventListener('envoy-message-sent', (e) => console.log(e.detail.text));"
+      },
+      "envoy-message-received": {
+        "description": "Fired when the bot finishes responding (after streaming completes).",
+        "detail": { "text": "string — The full bot response text." },
+        "example": "widget.addEventListener('envoy-message-received', (e) => console.log(e.detail.text));"
+      }
+    }
+  },
+
+  "bundleOptions": {
+    "_comment": "How the widget bundle is built and distributed",
+    "format": "UMD (Universal Module Definition)",
+    "outputFile": "packages/chatbot-ui/dist/chatbot-ui.js",
+    "buildCommand": "cd packages/chatbot-ui && pnpm build",
+    "selfRegistering": true,
+    "selfRegisteringNote": "The bundle automatically calls customElements.define('envoy-chatbot', EnvoyChatbot) when loaded. No additional registration code is needed.",
+    "noFrameworkRequired": true
+  }
+}

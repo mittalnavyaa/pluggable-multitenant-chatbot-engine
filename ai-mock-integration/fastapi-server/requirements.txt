@@ -1,0 +1,13 @@
+# ai-mock-integration/fastapi-server/requirements.txt
+#
+# Minimal Python dependencies for the Envoy mock FastAPI server.
+# Install with: pip install -r requirements.txt
+
+# FastAPI web framework
+fastapi==0.116.1
+
+# ASGI server (includes websockets and http tools extras)
+uvicorn[standard]==0.35.0
+
+# Loads .env files into os.environ
+python-dotenv==1.1.1

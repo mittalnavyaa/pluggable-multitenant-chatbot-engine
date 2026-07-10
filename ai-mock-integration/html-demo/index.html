@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Acme Corp — Envoy Chatbot Integration Demo</title>
+
+  <!--
+    ─────────────────────────────────────────────────────────────────────────
+    DEVELOPER NOTE — What this page demonstrates
+    ─────────────────────────────────────────────────────────────────────────
+    This is a mock "host website" that shows how any web page can embed the
+    Envoy chatbot widget. The page intentionally uses aggressive, conflicting
+    styles (Comic Sans, red buttons, green background) to prove that the
+    widget's Shadow DOM completely isolates its own styles from the host page.
+
+    The widget will look exactly the same regardless of what CSS the host
+    page applies. That is the entire point of Shadow DOM.
+    ─────────────────────────────────────────────────────────────────────────
+  -->
+
+  <!-- Step 1: Load the host page stylesheet -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ─── Mock Host Website Content ──────────────────────────────────────── -->
+
+  <header class="site-header">
+    <div class="logo">🏢 Acme Corp</div>
+    <nav>
+      <a href="#">Home</a>
+      <a href="#">Products</a>
+      <a href="#">Support</a>
+      <a href="#">Contact</a>
+    </nav>
+  </header>
+
+  <main class="site-main">
+
+    <section class="hero">
+      <h1>Welcome to Acme Corp</h1>
+      <p>
+        This is a mock host website demonstrating the Envoy chatbot widget integration.
+        The chatbot launcher appears in the bottom-right corner of the page.
+      </p>
+      <p>
+        Notice that the widget uses its own clean design even though this page
+        uses Comic Sans and aggressive red/green styles. That is
+        <strong>Shadow DOM isolation</strong> working correctly.
+      </p>
+      <button class="cta-button">Get Started</button>
+    </section>
+
+    <!-- ─── Widget Control Panel ─────────────────────────────────────────── -->
+    <!--
+      This panel demonstrates the widget's JavaScript public API.
+      In a real integration, you would call these methods from your own
+      application logic — for example, opening the chat when a user clicks
+      a "Help" button in your navigation.
+    -->
+    <section class="control-panel">
+      <h2>Widget Public API — Developer Control Panel</h2>
+      <p>
+        These buttons call the widget's JavaScript API directly.
+        Open your browser console to see the event log.
+      </p>
+
+      <div class="button-row">
+        <!-- Each button calls a method on the <envoy-chatbot> element -->
+        <button onclick="widgetAPI.open()">widget.open()</button>
+        <button onclick="widgetAPI.close()">widget.close()</button>
+        <button onclick="widgetAPI.toggle()">widget.toggle()</button>
+        <button onclick="widgetAPI.resetConversation()">widget.resetConversation()</button>
+        <button onclick="widgetAPI.sendMessage('Hello! Tell me about your services.')">
+          widget.sendMessage(...)
+        </button>
+        <button onclick="widgetAPI.destroy()" class="danger-button">
+          widget.destroy()
+        </button>
+      </div>
+
+      <!-- Live event log — shows custom events fired by the widget -->
+      <div class="event-log-wrapper">
+        <h3>Live Event Log</h3>
+        <p class="event-log-hint">
+          Custom events fired by the widget appear here in real time.
+        </p>
+        <div id="event-log" class="event-log">
+          <div class="event-log-placeholder">Waiting for widget events...</div>
+        </div>
+        <button onclick="clearEventLog()" class="clear-button">Clear Log</button>
+      </div>
+    </section>
+
+    <!-- ─── Integration Info Panel ───────────────────────────────────────── -->
+    <section class="info-panel">
+      <h2>How This Integration Works</h2>
+      <div class="info-grid">
+        <div class="info-card">
+          <h3>1. Widget Embed</h3>
+          <p>
+            A single <code>&lt;script&gt;</code> tag loads the widget bundle.
+            A single <code>&lt;envoy-chatbot&gt;</code> HTML tag places the widget.
+            No framework required.
+          </p>
+        </div>
+        <div class="info-card">
+          <h3>2. Branding Load</h3>
+          <p>
+            On mount, the widget fetches branding from
+            <code>GET /api/v1/products/:botId</code> and applies colors,
+            fonts, and content dynamically.
+          </p>
+        </div>
+        <div class="info-card">
+          <h3>3. Chat Request</h3>
+          <p>
+            User messages are sent to <code>POST /api/v1/chat</code> on your
+            host server. The Backend SDK middleware validates, signs, and
+            forwards the request to the core engine.
+          </p>
+        </div>
+        <div class="info-card">
+          <h3>4. Streaming Response</h3>
+          <p>
+            The bot response streams back as Server-Sent Events. The widget
+            renders each token as it arrives, giving a real-time typing effect.
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <p>Acme Corp Mock Website — Envoy Chatbot Integration Demo</p>
+  </footer>
+
+  <!-- ─────────────────────────────────────────────────────────────────────
+    Step 2: Load the Envoy Chatbot Widget bundle.
+
+    This is the compiled UMD bundle produced by running:
+      cd packages/chatbot-ui && pnpm build
+
+    The path below is relative to this HTML file's location.
+    In production you would host this file on a CDN or your own server
+    and reference it with an absolute URL.
+  ───────────────────────────────────────────────────────────────────────── -->
+  <script src="../../packages/chatbot-ui/dist/chatbot-ui.js"></script>
+
+  <!-- ─────────────────────────────────────────────────────────────────────
+    Step 3: Place the <envoy-chatbot> custom element anywhere in the page.
+
+    Attributes:
+      data-bot-id   — The product/tenant ID. The widget fetches branding
+                      for this ID from the server.
+      data-api-base — The base URL of YOUR host server (Express or FastAPI).
+                      The widget sends all requests to this origin.
+
+    The widget renders itself inside a Shadow DOM attached to this element.
+    It does not pollute the host page's DOM or styles.
+  ───────────────────────────────────────────────────────────────────────── -->
+  <envoy-chatbot
+    id="envoy-widget"
+    data-bot-id="tensor"
+    data-api-base="http://localhost:3000"
+  ></envoy-chatbot>
+
+  <!-- Step 4: Load the host-page JavaScript -->
+  <script src="app.js"></script>
+
+</body>
+</html>
