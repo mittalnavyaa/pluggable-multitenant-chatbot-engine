@@ -11,4 +11,8 @@ else:
     qdrant_client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
 
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "internal_chatbot_documents")
-EMBEDDING_DIMENSION = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
+
+# Resolve default dimension based on the provider
+EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "mock").strip()
+default_dim = "1536" if EMBEDDING_PROVIDER == "mock" else "1024"
+EMBEDDING_DIMENSION = int(os.getenv("EMBEDDING_DIMENSION", default_dim))

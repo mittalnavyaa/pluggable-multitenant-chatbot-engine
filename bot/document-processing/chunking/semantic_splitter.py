@@ -22,9 +22,12 @@ class SemanticSplitter:
         if len(sentences) == 1:
             return [sentences[0]]
 
-        # Generate embeddings for each sentence
+        # Generate embeddings for each sentence in a single batch call
         try:
-            embeddings = [self.embedding_service.generate_embedding(s) for s in sentences]
+            if hasattr(self.embedding_service, "generate_embeddings"):
+                embeddings = self.embedding_service.generate_embeddings(sentences)
+            else:
+                embeddings = [self.embedding_service.generate_embedding(s) for s in sentences]
         except Exception as e:
             logger.error(f"Failed to generate sentence embeddings: {e}. Falling back to paragraph.")
             return [text]

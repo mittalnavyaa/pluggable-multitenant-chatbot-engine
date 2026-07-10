@@ -20,11 +20,20 @@ def ensure_collection_initialized(client=None):
     """
     db_client = client or qdrant_client
     try:
-        # 1. Check if the collection already exists
+        # 1. Check if the collection already exists and has the correct vector size
         try:
             collection_info = db_client.get_collection(QDRANT_COLLECTION)
-            collection_exists = True
-            logger.info("Collection already exists.")
+            existing_size = collection_info.config.params.vectors.size
+            if existing_size != EMBEDDING_DIMENSION:
+                logger.warning(
+                    f"Collection dimension mismatch! Existing: {existing_size}, "
+                    f"Configured: {EMBEDDING_DIMENSION}. Recreating collection..."
+                )
+                db_client.delete_collection(QDRANT_COLLECTION)
+                collection_exists = False
+            else:
+                collection_exists = True
+                logger.info("Collection already exists and dimension matches.")
         except (UnexpectedResponse, Exception):
             collection_exists = False
 

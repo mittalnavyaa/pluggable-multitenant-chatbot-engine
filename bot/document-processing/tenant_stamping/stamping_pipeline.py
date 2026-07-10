@@ -48,7 +48,8 @@ class MultiTenantStampingPipeline:
         if provider:
             self.provider = provider
         else:
-            self.provider = MockEmbeddingProvider(model_name=self.embedding_config.model_name)
+            from embedding.embedding_provider import get_embedding_provider
+            self.provider = get_embedding_provider(self.embedding_config)
             
         self.embedding_service = EmbeddingPipelineService(self.provider, self.embedding_config)
         self.metadata_builder = MetadataBuilder(model_name=self.provider.model_name)

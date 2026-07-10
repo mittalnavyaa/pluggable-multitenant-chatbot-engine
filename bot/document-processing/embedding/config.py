@@ -8,6 +8,7 @@ class EmbeddingConfig:
     """Configurable options for embedding generation and Qdrant ingestion."""
     provider: str = "mock"
     model_name: str = "mock-1536"
+    dimension: int = 1536
     batch_size: int = 32
     retry_count: int = 3
     timeout: int = 30  # Upload timeout in seconds
@@ -15,9 +16,14 @@ class EmbeddingConfig:
 
     @classmethod
     def from_env(cls) -> "EmbeddingConfig":
+        provider = os.getenv("EMBEDDING_PROVIDER", "mock").strip()
+        default_model = "mock-1536" if provider == "mock" else "BAAI/bge-m3"
+        default_dim = 1536 if provider == "mock" else 1024
+        
         return cls(
-            provider=os.getenv("EMBEDDING_PROVIDER", "mock").strip(),
-            model_name=os.getenv("EMBEDDING_MODEL", "mock-1536").strip(),
+            provider=provider,
+            model_name=os.getenv("EMBEDDING_MODEL", default_model).strip(),
+            dimension=int(os.getenv("EMBEDDING_DIMENSION", str(default_dim))),
             batch_size=int(os.getenv("EMBEDDING_BATCH_SIZE", "32")),
             retry_count=int(os.getenv("EMBEDDING_RETRY_COUNT", "3")),
             timeout=int(os.getenv("EMBEDDING_TIMEOUT", "30")),

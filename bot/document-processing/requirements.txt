@@ -5,3 +5,5 @@ pytest==8.4.1
 reportlab==4.4.2
 requests==2.32.4
 tiktoken==0.8.0
+sentence-transformers
+
