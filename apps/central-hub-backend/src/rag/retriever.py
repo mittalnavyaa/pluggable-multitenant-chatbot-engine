@@ -26,6 +26,8 @@ class IsolatedQdrantRetriever(BaseRetriever):
     timeout: float
     hnsw_ef: int = 48
     indexed_only: bool = True
+    neighbor_expansion_enabled: bool = False
+    neighbor_expansion_count: int = 1
 
     def _get_relevant_documents(
         self, query: str, *, run_manager: CallbackManagerForRetrieverRun
@@ -99,6 +101,7 @@ class IsolatedQdrantRetriever(BaseRetriever):
                 metadata={
                     "point_id": res.id,
                     "score": res.score,
+                    "is_neighbor": False,
                     "platform_id": pt_platform_id,
                     "product_id": payload.get("product_id"),
                     "tenant_id": payload.get("tenant_id"),
@@ -123,5 +126,131 @@ class IsolatedQdrantRetriever(BaseRetriever):
                 }
             )
             docs.append(doc)
+
+        # 5. Process neighbor chunk expansion if enabled
+        if self.neighbor_expansion_enabled and docs:
+            # Collect document_id to list of chunk_indices we need to fetch
+            doc_to_indices = {}
+            for doc in docs:
+                doc_id = doc.metadata.get("document_id")
+                chunk_idx = doc.metadata.get("chunk_index")
+                if doc_id and chunk_idx is not None:
+                    if doc_id not in doc_to_indices:
+                        doc_to_indices[doc_id] = set()
+                    # Determine range of neighbors
+                    for offset in range(-self.neighbor_expansion_count, self.neighbor_expansion_count + 1):
+                        if offset != 0:
+                            doc_to_indices[doc_id].add(chunk_idx + offset)
+
+            # Filter out chunk indices that are already present in the primary docs list
+            primary_chunks = {}
+            for doc in docs:
+                doc_id = doc.metadata.get("document_id")
+                chunk_idx = doc.metadata.get("chunk_index")
+                if doc_id and chunk_idx is not None:
+                    if doc_id not in primary_chunks:
+                        primary_chunks[doc_id] = set()
+                    primary_chunks[doc_id].add(chunk_idx)
+
+            # Remove primary chunk indices from neighbor targets
+            for doc_id, targets in list(doc_to_indices.items()):
+                existing = primary_chunks.get(doc_id, set())
+                targets.difference_update(existing)
+                if not targets:
+                    del doc_to_indices[doc_id]
+
+            # Fetch neighbors via scroll
+            neighbor_docs = []
+            for doc_id, targets in doc_to_indices.items():
+                try:
+                    from qdrant_client.models import Filter, FieldCondition, MatchValue, MatchAny
+                    conditions = [
+                        FieldCondition(key="platform_id", match=MatchValue(value=self.platform_id)),
+                        FieldCondition(key="document_id", match=MatchValue(value=doc_id)),
+                        FieldCondition(key="chunk_index", match=MatchAny(any=list(targets)))
+                    ]
+                    scroll_filter = Filter(must=conditions)
+                    
+                    scroll_results, _ = self.qdrant_client.scroll(
+                        collection_name=self.collection_name,
+                        scroll_filter=scroll_filter,
+                        limit=len(targets) * 2,
+                        with_payload=True,
+                        with_vectors=False
+                    )
+                    
+                    for res in scroll_results:
+                        payload = res.payload or {}
+                        content = payload.get("content")
+                        if content is None:
+                            continue
+                            
+                        neighbor_doc = Document(
+                            page_content=str(content),
+                            metadata={
+                                "point_id": res.id,
+                                "score": 0.0,  # neighbor chunks do not have a search score
+                                "is_neighbor": True,
+                                "platform_id": self.platform_id,
+                                "product_id": payload.get("product_id"),
+                                "tenant_id": payload.get("tenant_id"),
+                                "bot_id": payload.get("bot_id"),
+                                "document_id": payload.get("document_id"),
+                                "chunk_id": payload.get("chunk_id"),
+                                "page_number": payload.get("page_number", 1),
+                                "page_start": payload.get("page_start", payload.get("page_number", 1)),
+                                "page_end": payload.get("page_end", payload.get("page_number", 1)),
+                                "element_type": payload.get("element_type", "paragraph"),
+                                "heading_path": payload.get("heading_path", ""),
+                                "source_filename": payload.get("source_filename", ""),
+                                "chunk_index": payload.get("chunk_index"),
+                                "parent_headings": payload.get("parent_headings", {}),
+                                "section_title": payload.get("section_title", "Root"),
+                                "token_count": payload.get("token_count"),
+                                "character_count": payload.get("character_count"),
+                                "embedding_model": payload.get("embedding_model"),
+                                "processing_timestamp": payload.get("processing_timestamp"),
+                                "schema_version": payload.get("schema_version"),
+                                "correlation_id": payload.get("correlation_id", "")
+                            }
+                        )
+                        neighbor_docs.append(neighbor_doc)
+                except Exception as ex:
+                    logger.error(f"Failed to fetch neighbor chunks for doc {doc_id}: {ex}")
+
+            if neighbor_docs:
+                all_docs = docs + neighbor_docs
+                
+                # Deduplicate using (document_id, chunk_index)
+                seen_chunks = set()
+                unique_docs = []
+                for d in all_docs:
+                    d_id = d.metadata.get("document_id")
+                    c_idx = d.metadata.get("chunk_index")
+                    if d_id and c_idx is not None:
+                        key = (d_id, c_idx)
+                        if key in seen_chunks:
+                            continue
+                        seen_chunks.add(key)
+                    unique_docs.append(d)
+                
+                # Record first appearance index of each document_id to preserve document-level order
+                doc_order = {}
+                for doc in docs:
+                    doc_id = doc.metadata.get("document_id")
+                    if doc_id and doc_id not in doc_order:
+                        doc_order[doc_id] = len(doc_order)
+                
+                # Sort function:
+                # 1. Document appearance order (unknown docs at the end)
+                # 2. Chunk index ascending
+                def sort_key(d: Document):
+                    doc_id = d.metadata.get("document_id")
+                    chunk_idx = d.metadata.get("chunk_index") or 0
+                    order = doc_order.get(doc_id, 999999)
+                    return (order, chunk_idx)
+                    
+                unique_docs.sort(key=sort_key)
+                docs = unique_docs
 
         return docs

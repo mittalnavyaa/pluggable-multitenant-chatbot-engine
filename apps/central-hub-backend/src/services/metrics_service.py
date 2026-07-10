@@ -107,3 +107,46 @@ class MetricsService:
             self.db.commit()
         else:
             logger.warning(f"Metrics record not found for document_id={document_id} during failure marking")
+
+    def log_query_metrics(
+        self,
+        platform_id: str,
+        query: str,
+        conversation_id: str | None,
+        retrieval_latency_ms: float | None,
+        embedding_latency_ms: float | None,
+        llm_latency_ms: float | None,
+        top_k: int | None,
+        similarity_scores: list[float],
+        best_similarity_score: float | None,
+        retrieved_chunk_ids: list[str],
+        retrieved_document_ids: list[str],
+        token_usage: int | None,
+        fallback_triggered: bool
+    ):
+        """Persists query retrieval metrics to database."""
+        from src.models.analytics import QueryRetrievalMetrics
+        
+        metrics = QueryRetrievalMetrics(
+            platform_id=platform_id,
+            query=query,
+            conversation_id=conversation_id,
+            retrieval_latency_ms=retrieval_latency_ms,
+            embedding_latency_ms=embedding_latency_ms,
+            llm_latency_ms=llm_latency_ms,
+            top_k=top_k,
+            similarity_scores=similarity_scores,
+            best_similarity_score=best_similarity_score,
+            retrieved_chunk_ids=retrieved_chunk_ids,
+            retrieved_document_ids=retrieved_document_ids,
+            token_usage=token_usage,
+            fallback_triggered=fallback_triggered
+        )
+        try:
+            self.db.add(metrics)
+            self.db.commit()
+            return metrics
+        except Exception as e:
+            logger.error(f"Failed to persist QueryRetrievalMetrics: {e}")
+            self.db.rollback()
+            return None

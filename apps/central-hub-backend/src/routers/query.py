@@ -93,6 +93,30 @@ async def retrieve_context(
             chat_history=payload.chat_history,
             db=db
         )
+
+        # 3. Log/Persist metrics to Database
+        if db:
+            try:
+                from src.services.metrics_service import MetricsService
+                metrics_svc = MetricsService(db)
+                metrics_svc.log_query_metrics(
+                    platform_id=response.platform_id,
+                    query=payload.query,
+                    conversation_id=payload.conversation_id,
+                    retrieval_latency_ms=response.retrieval_latency_ms,
+                    embedding_latency_ms=response.embedding_latency_ms,
+                    llm_latency_ms=response.llm_latency_ms,
+                    top_k=response.top_k,
+                    similarity_scores=response.similarity_scores,
+                    best_similarity_score=response.best_similarity_score,
+                    retrieved_chunk_ids=response.retrieved_chunk_ids,
+                    retrieved_document_ids=response.retrieved_document_ids,
+                    token_usage=response.token_usage,
+                    fallback_triggered=response.fallback_triggered
+                )
+            except Exception as ex:
+                logger.error(f"Failed to record query retrieval observability metrics: {ex}")
+
         return response
 
     except InvalidPlatformError as e:

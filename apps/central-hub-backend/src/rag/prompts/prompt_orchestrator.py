@@ -76,7 +76,8 @@ class PromptOrchestrator:
         query: str,
         retrieved_context: str,
         chat_history: Optional[List[Dict[str, Any]]],
-        db: Optional[Any] = None
+        db: Optional[Any] = None,
+        force_fallback: bool = False
     ) -> Tuple[str, int, float, bool]:
         """
         Assembles prompt layers, estimates tokens, applies dynamic payload truncation
@@ -90,18 +91,18 @@ class PromptOrchestrator:
             - Fallback Triggered flag (bool)
         """
         start_time = time.time()
-        fallback_triggered = False
+        fallback_triggered = force_fallback
 
         # 1. Retrieve tenant config profile
         profile = self.get_tenant_profile(platform_id, db)
         fallback_msg = profile.fallback_message or self.config.default_fallback_message
 
         # 2. Determine if context is empty/insufficient to trigger fallback rules
-        clean_context = retrieved_context.strip()
+        clean_context = "" if force_fallback else retrieved_context.strip()
         if not clean_context:
             fallback_triggered = True
             # When fallback is triggered, prompt instructs immediate fallback output
-            logger.info(f"Empty context detected for tenant '{platform_id}'. Fallback mechanics triggered.")
+            logger.info(f"Empty context or forced fallback detected for tenant '{platform_id}'. Fallback mechanics triggered.")
 
         # 3. Compile prompt
         assembled_prompt = PromptBuilder.assemble_prompt(

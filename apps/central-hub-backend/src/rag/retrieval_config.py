@@ -7,6 +7,10 @@ class RetrievalConfig(BaseSettings):
     """Configures retrieval parameters for multi-tenant search."""
     top_k: int = int(os.getenv("RETRIEVAL_TOP_K", "4"))
     score_threshold: float = float(os.getenv("RETRIEVAL_SCORE_THRESHOLD", "0.0"))
+    relevance_threshold: float = float(os.getenv("RETRIEVAL_RELEVANCE_THRESHOLD", "0.0"))
+    neighbor_expansion_enabled: bool = os.getenv("RETRIEVAL_NEIGHBOR_EXPANSION_ENABLED", "false").lower() in ("true", "1", "yes")
+    neighbor_expansion_count: int = int(os.getenv("RETRIEVAL_NEIGHBOR_EXPANSION_COUNT", "1"))
+    retrieval_version: str = os.getenv("RETRIEVAL_VERSION", "v1.0.0")
     retrieval_strategy: str = os.getenv("RETRIEVAL_STRATEGY", "similarity")
     max_context_chunks: int = int(os.getenv("RETRIEVAL_MAX_CONTEXT_CHUNKS", "10"))
     timeout: float = float(os.getenv("RETRIEVAL_TIMEOUT", "10.0"))  # Timeout in seconds
@@ -27,7 +31,8 @@ class RetrievalConfig(BaseSettings):
         "source_filename",
         "content",
         "parent_headings",
-        "section_title"
+        "section_title",
+        "chunk_index"
     ]
 
     class Config:

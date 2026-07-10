@@ -36,8 +36,10 @@ class ContextBuilder:
             elif isinstance(headings, str) and headings:
                 hierarchy = headings
 
+            retrieval_type = "Neighbor Context" if meta.get("is_neighbor") else "Direct Match"
+
             # Formulate layout header
-            header = f"[Chunk {idx + 1}] Source: {title} | Section: {section} | Page: {page} | Chunk ID: {chunk_id}"
+            header = f"[Chunk {idx + 1}] Source: {title} | Section: {section} | Page: {page} | Chunk ID: {chunk_id} | Type: {retrieval_type}"
             if hierarchy:
                 header += f" | Hierarchy: {hierarchy}"
 

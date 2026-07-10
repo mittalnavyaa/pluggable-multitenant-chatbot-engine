@@ -157,15 +157,28 @@ class ContextIsolationRoutingEngine:
                 score_threshold=self.config.score_threshold,
                 timeout=self.config.timeout,
                 hnsw_ef=self.config.qdrant_hnsw_ef,
-                indexed_only=self.config.qdrant_indexed_only
+                indexed_only=self.config.qdrant_indexed_only,
+                neighbor_expansion_enabled=self.config.neighbor_expansion_enabled,
+                neighbor_expansion_count=self.config.neighbor_expansion_count
             )
 
             # Retrieve documents
             documents = retriever.invoke(query)
             qdrant_latency = (time.time() - qdrant_start) * 1000.0
 
+            # --- Similarity ThresholdConfidence Gate ---
+            # Gate is triggered if no documents are retrieved or all retrieved documents have a score below the threshold.
+            is_below_threshold = (
+                not documents or 
+                not any(doc.metadata.get("score", 0.0) >= self.config.relevance_threshold for doc in documents if not doc.metadata.get("is_neighbor", False))
+            )
+            force_fallback = is_below_threshold
+
             # --- Stage 5: Context Assembly ---
-            formatted_context = ContextBuilder.build_context(documents)
+            if force_fallback:
+                formatted_context = ""
+            else:
+                formatted_context = ContextBuilder.build_context(documents)
 
             # --- Prompt Orchestrator Integration (KV-cache optimized) ---
             compiled_prompt, token_estimate, prompt_latency, fallback_triggered = (
@@ -174,7 +187,8 @@ class ContextIsolationRoutingEngine:
                     query=query,
                     retrieved_context=formatted_context,
                     chat_history=chat_history,
-                    db=db
+                    db=db,
+                    force_fallback=force_fallback
                 )
             )
 
@@ -184,7 +198,9 @@ class ContextIsolationRoutingEngine:
             for doc in documents:
                 meta = doc.metadata
                 score = meta.get("score", 0.0)
-                score_distribution.append(score)
+                # Only include score of direct matches, neighbor context has score = 0.0
+                if not meta.get("is_neighbor", False):
+                    score_distribution.append(score)
                 
                 retrieved_chunks.append(
                     RetrievedChunk(
@@ -200,7 +216,10 @@ class ContextIsolationRoutingEngine:
 
             # Capture stats
             overall_latency = (time.time() - start_time) * 1000.0
-            
+            best_score = max(score_distribution) if score_distribution else 0.0
+            chunk_ids = [chunk.chunk_id for chunk in retrieved_chunks]
+            doc_ids = [chunk.document_id for chunk in retrieved_chunks]
+
             response = RuntimeResponse(
                 platform_id=clean_platform_id,
                 retrieved_chunks=retrieved_chunks,
@@ -219,7 +238,24 @@ class ContextIsolationRoutingEngine:
                     streaming_duration_ms=0.0,
                     total_response_latency_ms=overall_latency
                 ),
-                compiled_prompt=compiled_prompt
+                compiled_prompt=compiled_prompt,
+                
+                # Version Tracking
+                prompt_version=self.prompt_orchestrator.config.prompt_version,
+                system_version=self.prompt_orchestrator.config.system_version,
+                retrieval_version=self.config.retrieval_version,
+                
+                # Observability
+                retrieval_latency_ms=qdrant_latency,
+                embedding_latency_ms=embedding_latency,
+                llm_latency_ms=0.0,  # Pure retrieval phase
+                top_k=self.config.top_k,
+                similarity_scores=score_distribution,
+                best_similarity_score=best_score,
+                retrieved_chunk_ids=chunk_ids,
+                retrieved_document_ids=doc_ids,
+                token_usage=token_estimate,
+                fallback_triggered=fallback_triggered
             )
 
             # --- Redis Semantic Cache Write ---

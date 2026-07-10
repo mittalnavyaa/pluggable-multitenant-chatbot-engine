@@ -41,3 +41,20 @@ class RuntimeResponse(BaseModel):
     formatted_context: str = Field(..., description="Assembled clean context string for LLM input.")
     statistics: RetrievalStatistics = Field(..., description="Performance metrics of retrieval operation.")
     compiled_prompt: Optional[str] = Field(default=None, description="The KV-cache friendly compiled prompt template.")
+
+    # Version Tracking
+    prompt_version: str = Field(default="v1.0.0", description="Version of the prompt configuration.")
+    system_version: str = Field(default="v1.0.0", description="Version of the system software.")
+    retrieval_version: str = Field(default="v1.0.0", description="Version of the retrieval configuration.")
+
+    # Observability
+    retrieval_latency_ms: Optional[float] = Field(default=None, description="Qdrant search query latency in ms.")
+    embedding_latency_ms: Optional[float] = Field(default=None, description="Vector embedding creation latency in ms.")
+    llm_latency_ms: Optional[float] = Field(default=None, description="LLM execution duration in ms.")
+    top_k: Optional[int] = Field(default=None, description="Configured top-k search constraint.")
+    similarity_scores: Optional[List[float]] = Field(default=None, description="Retrieved cosine similarity scores.")
+    best_similarity_score: Optional[float] = Field(default=None, description="Highest similarity score retrieved.")
+    retrieved_chunk_ids: Optional[List[str]] = Field(default=None, description="List of unique chunk IDs retrieved.")
+    retrieved_document_ids: Optional[List[str]] = Field(default=None, description="List of unique document IDs retrieved.")
+    token_usage: Optional[int] = Field(default=None, description="Token estimate of compiled prompt.")
+    fallback_triggered: Optional[bool] = Field(default=None, description="Flag indicating if fallback rules were applied.")

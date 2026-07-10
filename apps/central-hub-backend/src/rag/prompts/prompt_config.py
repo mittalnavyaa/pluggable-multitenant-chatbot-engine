@@ -15,6 +15,8 @@ class PromptConfig(BaseSettings):
     )
     response_tone: str = os.getenv("PROMPT_RESPONSE_TONE", "precise, helpful, and professional")
     encoding_name: str = os.getenv("PROMPT_TOKEN_ENCODING", "cl100k_base")
+    prompt_version: str = os.getenv("PROMPT_VERSION", "v1.0.0")
+    system_version: str = os.getenv("SYSTEM_VERSION", "v1.0.0")
 
     class Config:
         env_prefix = "PROMPT_"
