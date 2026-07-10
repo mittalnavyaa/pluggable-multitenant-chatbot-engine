@@ -387,7 +387,7 @@ export function KnowledgeMetrics() {
         <SearchBar
           placeholder="Search documents..."
           value={searchQuery}
-          onChange={(val) => { setSearchQuery(val); setCurrentPage(1); }}
+          onChange={(val: string) => { setSearchQuery(val); setCurrentPage(1); }}
         />
       </div>
 

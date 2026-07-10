@@ -1,4 +1,11 @@
-export function SearchBar({ placeholder = 'Search', value, onChange, hideLabel = false }) {
+export interface SearchBarProps {
+  placeholder?: string;
+  value?: string;
+  onChange?: (value: string) => void;
+  hideLabel?: boolean;
+}
+
+export function SearchBar({ placeholder = 'Search', value, onChange, hideLabel = false }: SearchBarProps) {
   const isControlled = onChange !== undefined;
 
   return (
@@ -12,7 +19,7 @@ export function SearchBar({ placeholder = 'Search', value, onChange, hideLabel =
         <input
           type="search"
           placeholder={placeholder}
-          {...(isControlled ? { value, onChange: (e) => onChange(e.target.value) } : {})}
+          {...(isControlled ? { value, onChange: (e) => onChange?.(e.target.value) } : {})}
         />
       </span>
     </label>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useEnterpriseDashboardData } from './hooks/useEnterpriseDashboardData.js';
+import { useEnterpriseDashboardData } from './hooks/useEnterpriseDashboardData';
 import { DashboardLayout } from './layouts/DashboardLayout.jsx';
 import { AdminDashboard } from './pages/AdminDashboard.jsx';
 import { ApiKeys } from './pages/ApiKeys.jsx';
@@ -30,8 +30,8 @@ export function DashboardApp() {
     'Ingestion Status Queues': <Documents documents={data.documents} />,
     'Sales Conversions': <AdminDashboard />,
     Products: <Products products={data.products} onViewDetails={viewDetails} />,
-    'Product Details': <ProductDetails product={selectedProduct} />,
-    Branding: <Branding product={selectedProduct} />,
+    'Product Details': selectedProduct ? <ProductDetails product={selectedProduct} /> : <div style={{ padding: '24px', color: 'var(--color-text)' }}>No product selected.</div>,
+    Branding: selectedProduct ? <Branding product={selectedProduct} /> : <div style={{ padding: '24px', color: 'var(--color-text)' }}>Please select a product.</div>,
     Uploads: <Uploads />,
     'API Keys': <ApiKeys keyRecords={data.keyRecords} />,
     Documents: <Documents documents={data.documents} />,

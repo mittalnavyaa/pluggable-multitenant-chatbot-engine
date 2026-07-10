@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { isAuthenticated } from './auth/authService';
 import { ProtectedRoute } from './components/ProtectedRoute';
-import { useEnterpriseDashboardData } from '../hooks/useEnterpriseDashboardData.js';
+import { useEnterpriseDashboardData } from '../hooks/useEnterpriseDashboardData';
 import { DashboardLayout } from '../layouts/DashboardLayout.jsx';
 import { AdminDashboard } from '../pages/AdminDashboard.jsx';
 import { ApiKeys } from '../pages/ApiKeys.jsx';
@@ -47,11 +47,18 @@ function ProductDetailsRoute() {
   const { id } = useParams();
   const product = data.products.find((item) => item.id === id) || data.selectedProduct;
 
+  if (!product) {
+    return <div style={{ padding: '24px', color: 'var(--color-text)' }}>No product selected or found.</div>;
+  }
+
   return <ProductDetails product={product} />;
 }
 
 function BrandingRoute() {
   const data = useEnterpriseDashboardData();
+  if (!data.selectedProduct) {
+    return <div style={{ padding: '24px', color: 'var(--color-text)' }}>Please select a product to manage branding.</div>;
+  }
   return <Branding product={data.selectedProduct} />;
 }
 

@@ -1,15 +1,24 @@
 import { useState, useEffect, useCallback } from 'react';
+import { ProductInfo } from '../services/productService';
+import { DashboardDocument, KeyRecord, DashboardData } from '../types/dashboard';
 
-export function useEnterpriseDashboardData() {
-  const [documentsState, setDocumentsState] = useState([]);
-  const [productsState, setProductsState] = useState([]);
-  const [summaryState, setSummaryState] = useState(null);
+interface SummaryState {
+  total_products: number;
+  active_products: number;
+  total_documents: number;
+  completed_documents: number;
+}
+
+export function useEnterpriseDashboardData(): DashboardData {
+  const [documentsState, setDocumentsState] = useState<DashboardDocument[]>([]);
+  const [productsState, setProductsState] = useState<ProductInfo[]>([]);
+  const [summaryState, setSummaryState] = useState<SummaryState | null>(null);
 
   const refreshSummary = useCallback(async () => {
     try {
       const response = await fetch('/api/v1/dashboard/summary');
       if (response.ok) {
-        const data = await response.json();
+        const data: SummaryState = await response.json();
         setSummaryState(data);
       }
     } catch (err) {
@@ -22,7 +31,7 @@ export function useEnterpriseDashboardData() {
       const response = await fetch('/api/v1/documents');
       if (response.ok) {
         const data = await response.json();
-        const mapped = data.map((d) => ({
+        const mapped: DashboardDocument[] = data.map((d: any) => ({
           id: d.id,
           product: d.product_id ? d.product_id.charAt(0).toUpperCase() + d.product_id.slice(1) : '',
           fileName: d.filename,
@@ -46,7 +55,7 @@ export function useEnterpriseDashboardData() {
       const response = await fetch('/api/v1/products');
       if (response.ok) {
         const data = await response.json();
-        const mapped = data.map((p) => ({
+        const mapped: ProductInfo[] = data.map((p: any) => ({
           id: p.product_id,
           uuid: p.id,
           name: p.name,
@@ -72,7 +81,7 @@ export function useEnterpriseDashboardData() {
   }, [refreshDocuments, refreshProducts, refreshSummary]);
 
   // TODO: Integrate actual service token database mapping when key management backend endpoints are implemented.
-  const activeKeyRecords = productsState.map((product) => ({
+  const activeKeyRecords: KeyRecord[] = productsState.map((product) => ({
     id: `key-${product.id}`,
     product: product.name,
     maskedKey: product.serviceTokenMasked,

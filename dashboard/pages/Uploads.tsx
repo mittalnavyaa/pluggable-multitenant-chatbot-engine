@@ -9,7 +9,7 @@ import { usePipeline } from '../hooks/usePipeline';
 import { useUpload } from '../hooks/useUpload';
 import { getOutputDownloadUrl } from '../services/pipelineService';
 import { fetchBots, createBot, type BotInfo } from '../services/botService';
-import { useEnterpriseDashboardData } from '../hooks/useEnterpriseDashboardData.js';
+import { useEnterpriseDashboardData } from '../hooks/useEnterpriseDashboardData';
 import '../styles/upload.css';
 
 export function Uploads() {
