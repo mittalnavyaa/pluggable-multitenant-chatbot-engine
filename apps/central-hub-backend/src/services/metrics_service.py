@@ -175,3 +175,65 @@ class MetricsService:
             logger.error(f"Failed to persist GatewayMetrics: {e}")
             self.db.rollback()
             return None
+
+    def log_streaming_event_publish(
+        self,
+        event_id: str,
+        event_type: str,
+        platform_id: str,
+        bot_id: str,
+        conversation_id: str,
+        publish_latency_ms: float,
+        status: str
+    ):
+        """Records initial publishing state of an asynchronous conversation clone event."""
+        from src.models.analytics import StreamingEventMetrics
+        
+        metrics = StreamingEventMetrics(
+            event_id=event_id,
+            event_type=event_type,
+            platform_id=platform_id,
+            bot_id=bot_id,
+            conversation_id=conversation_id,
+            publish_latency_ms=publish_latency_ms,
+            status=status
+        )
+        try:
+            self.db.add(metrics)
+            self.db.commit()
+            return metrics
+        except Exception as e:
+            logger.error(f"Failed to persist StreamingEventMetrics publish: {e}")
+            self.db.rollback()
+            return None
+
+    def update_streaming_event_status(
+        self,
+        event_id: str,
+        status: str,
+        worker_latency_ms: float,
+        queue_latency_ms: float,
+        error_message: str | None = None
+    ):
+        """Updates background event metrics row with processing latency, queue latency, and status."""
+        from src.models.analytics import StreamingEventMetrics
+        
+        metrics = self.db.query(StreamingEventMetrics).filter_by(event_id=event_id).first()
+        if metrics:
+            metrics.status = status
+            metrics.worker_latency_ms = worker_latency_ms
+            metrics.queue_latency_ms = queue_latency_ms
+            metrics.processed_at = datetime.datetime.utcnow()
+            if error_message:
+                metrics.error_message = error_message
+            try:
+                self.db.commit()
+                return metrics
+            except Exception as e:
+                logger.error(f"Failed to update StreamingEventMetrics status: {e}")
+                self.db.rollback()
+                return None
+        else:
+            logger.warning(f"Streaming event metrics record not found for event_id={event_id} during status update to {status}")
+            return None
+

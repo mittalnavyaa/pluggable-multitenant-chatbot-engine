@@ -1,7 +1,7 @@
 // packages/chatbot-ui/src/index.ts
 
 import stylesText from './styles.css?raw';
-import { type Message, type BrandingConfig, type WidgetState, type ConversationState } from './types';
+import { type Message, type BrandingConfig, type WidgetState } from './types';
 import { brandingStore } from './branding/branding-store';
 import { CSSVariableMapper } from './branding/css-variable-mapper';
 import { DEFAULT_ENVOY_THEME } from './branding/default-theme';
@@ -17,7 +17,6 @@ import { LoadingStateController } from './ui/loading-state';
 
 export class EnvoyChatbot extends HTMLElement {
   private isOpen: boolean = false;
-  private state: WidgetState = 'idle';
   private messages: Message[] = [];
   private branding: BrandingConfig = { ...DEFAULT_ENVOY_THEME };
   private botId: string = '';
@@ -99,8 +98,6 @@ export class EnvoyChatbot extends HTMLElement {
       } else {
         this.typingIndicatorController.hide();
       }
-
-      this.state = (state === 'failed') ? 'error' : (state === 'idle' ? 'idle' : 'loading');
     });
 
     // Setup store listener
@@ -235,9 +232,8 @@ export class EnvoyChatbot extends HTMLElement {
   //  Internal Layout & Logic                                           #
   // ------------------------------------------------------------------ #
 
-  private onBrandingUpdate(config: BrandingConfig, state: WidgetState) {
+  private onBrandingUpdate(config: BrandingConfig, _state: WidgetState) {
     this.branding = config;
-    this.state = state;
 
     this.applyTheme();
     this.applyFeatureFlags();

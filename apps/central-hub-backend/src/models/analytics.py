@@ -113,3 +113,32 @@ class GatewayMetrics(Base):
     error_reason = Column(String(255), nullable=True)
     latency_ms = Column(Float, nullable=False)
     created_at = Column(DateTime, server_default=text("timezone('utc', now())"))
+
+
+class StreamingEventMetrics(Base):
+    __tablename__ = "streaming_event_metrics"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        server_default=text("uuid_generate_v4()")
+    )
+    event_id = Column(String(100), nullable=False, unique=True)
+    event_type = Column(String(100), nullable=False)
+    platform_id = Column(String(100), nullable=False)
+    bot_id = Column(String(100), nullable=False)
+    conversation_id = Column(String(100), nullable=False)
+    
+    # Latencies (in milliseconds)
+    publish_latency_ms = Column(Float, nullable=True)
+    queue_latency_ms = Column(Float, nullable=True)
+    worker_latency_ms = Column(Float, nullable=True)
+    
+    # Status & Retries
+    status = Column(String(50), nullable=False)  # e.g. PUBLISHED, PROCESSED, DUPLICATE, FAILED
+    retry_count = Column(Integer, default=0)
+    error_message = Column(String(500), nullable=True)
+    
+    created_at = Column(DateTime, server_default=text("timezone('utc', now())"))
+    processed_at = Column(DateTime, nullable=True)
+

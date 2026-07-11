@@ -50,19 +50,36 @@ class IsolatedQdrantRetriever(BaseRetriever):
         start_time = time.time()
         try:
             logger.info(f"Searching Qdrant collection '{self.collection_name}' for tenant '{self.platform_id}'")
-            search_results = self.qdrant_client.search(
-                collection_name=self.collection_name,
-                query_vector=query_vector,
-                query_filter=tenant_filter,
-                limit=self.top_k,
-                score_threshold=self.score_threshold,
-                with_payload=True,
-                timeout=self.timeout,
-                search_params=SearchParams(
-                    hnsw_ef=self.hnsw_ef,
-                    indexed_only=self.indexed_only
+            if hasattr(self.qdrant_client, "search"):
+                search_results = self.qdrant_client.search(
+                    collection_name=self.collection_name,
+                    query_vector=query_vector,
+                    query_filter=tenant_filter,
+                    limit=self.top_k,
+                    score_threshold=self.score_threshold,
+                    with_payload=True,
+                    timeout=int(self.timeout),
+                    search_params=SearchParams(
+                        hnsw_ef=self.hnsw_ef,
+                        indexed_only=self.indexed_only
+                    )
                 )
-            )
+            else:
+                # Fallback to unified Query API for local environments with mixin loading issues
+                response = self.qdrant_client.query_points(
+                    collection_name=self.collection_name,
+                    query=query_vector,
+                    query_filter=tenant_filter,
+                    limit=self.top_k,
+                    score_threshold=self.score_threshold,
+                    with_payload=True,
+                    timeout=int(self.timeout),
+                    search_params=SearchParams(
+                        hnsw_ef=self.hnsw_ef,
+                        indexed_only=self.indexed_only
+                    )
+                )
+                search_results = response.points
         except UnexpectedResponse as e:
             logger.error(f"Qdrant returned unexpected response: {e}")
             raise VectorDatabaseUnavailableError(f"Vector database unavailable: {e}") from e

@@ -8,7 +8,7 @@ async def authenticate_request(request: Request, call_next):
     path = request.url.path
 
     # Authenticate requests to tenant/bot/document management endpoints
-    if path.startswith(("/api/v1/bots", "/api/v1/documents", "/api/v1/dashboard")):
+    if path.startswith(("/api/v1/bots", "/api/v1/documents", "/api/v1/dashboard", "/api/v1/chat")):
         auth_header = request.headers.get("Authorization")
         api_key_header = request.headers.get("X-Envoy-API-Key")
         token = None
@@ -17,7 +17,7 @@ async def authenticate_request(request: Request, call_next):
         elif api_key_header:
             token = api_key_header.strip()
 
-        is_retrieve = path == "/api/v1/bots/retrieve"
+        is_retrieve = path in ("/api/v1/bots/retrieve", "/api/v1/chat/stream")
 
         if not token:
             # Check if this is a request from the local React admin dashboard

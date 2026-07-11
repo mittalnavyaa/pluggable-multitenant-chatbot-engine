@@ -68,7 +68,7 @@ from src.models.bot import Bot
 from src.models.internal_product import InternalProduct
 from src.services.metrics_service import MetricsService
 from src.rag.retrieval_config import RetrievalConfig
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class ValidatedRuntimeContext(BaseModel):
     platform_id: str
@@ -560,4 +560,393 @@ async def retrieve_context(
     finally:
         if concurrency_acquired:
             limiter.release_concurrency(rate_limit_key, request_id)
+
+
+from typing import Optional, List, Dict, Any
+
+
+class ChatStreamRequest(BaseModel):
+    bot_id: str = Field(..., min_length=1, description="The product/bot ID context.")
+    prompt: str = Field(..., min_length=1, max_length=4000, description="The user query.")
+    stream: bool = Field(default=False, description="Whether to stream responses via SSE.")
+    conversation_id: Optional[str] = Field(default=None, description="UUID or string representing conversation thread.")
+    chat_history: Optional[List[Dict[str, Any]]] = Field(default=None, description="Optional conversation context history.")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Optional request metadata.")
+
+
+chat_router = APIRouter(
+    prefix="/api/v1/chat",
+    tags=["Chat"]
+)
+
+
+def generate_response_text(prompt: str, context: str) -> str:
+    import re
+    q = prompt.lower()
+    words = set(re.findall(r'\b\w+\b', q))
+    
+    # If RAG context was retrieved, always use it (this is the primary response path)
+    if context and context.strip():
+        return f"Based on the retrieved knowledge documents: {context[:500]}... If you need more details, please let me know."
+    
+    # Fallback: keyword-based responses only when no RAG context is available
+    # Use word-boundary matching (set intersection) to avoid substring false positives
+    # e.g., "hi" should not match "internship"
+    if words & {"hello", "hi", "hey"}:
+        return "Hello! I am the Envoy AI assistant. I can help you with analytics, reports, and platform configuration. What would you like to know?"
+    
+    if words & {"branding", "color", "theme"}:
+        return "You can customize the widget's colors, fonts, and layout through the Branding configuration panel in the admin dashboard. Changes are applied dynamically at runtime."
+    
+    if words & {"sync", "knowledge", "document"}:
+        return "To synchronize the knowledge base, navigate to the Knowledge Metrics section and click 'Synchronize Brain'. The system will re-index all pending documents."
+    
+    if words & {"sdk", "install", "integrate"}:
+        return "To integrate the Backend SDK, install @envoy/chatbot-backend-sdk, call createChatbotSDK() with your credentials, and register the middleware on your chat route."
+    
+    if words & {"stream", "sse"}:
+        return "Streaming responses use Server-Sent Events (SSE). The widget connects to GET /api/v1/chat/stream and reads token chunks as they arrive."
+        
+    return f'Thank you for your question about "{prompt}". The Envoy AI platform provides intelligent, context-aware responses from your indexed knowledge base. How can I assist you further?'
+
+
+from fastapi.responses import StreamingResponse
+import asyncio
+
+
+@chat_router.post("/stream")
+async def chat_stream(
+    request: Request,
+    payload: ChatStreamRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Handles standard and SSE streaming responses for client conversation threads.
+    Performs context-isolated RAG retrieval, generates the response, and publishes
+    a copy of the conversation asynchronously as a background task.
+    """
+    start_time = time.time()
+    correlation_id = request.headers.get("X-Correlation-ID", "")
+    metrics_svc = MetricsService(db)
+    
+    # 1. Resolve client rate limits and concurrency limits
+    compat_payload = QueryRequest(
+        query=payload.prompt,
+        conversation_id=payload.conversation_id or f"conv_{uuid.uuid4().hex[:8]}",
+        chat_history=payload.chat_history,
+        bot_id=payload.bot_id
+    )
+    
+    limit_type, rate_limit_key, rpm_limit, concurrent_limit = resolve_client_limit_and_key(
+        request, compat_payload, gateway_config
+    )
+    
+    request_id = f"req_{uuid.uuid4()}"
+    concurrency_acquired = False
+    
+    try:
+        # 2. Rate Limiting Check
+        if gateway_config.rate_limit_enabled:
+            if not limiter.check_rate_limit(rate_limit_key, rpm_limit):
+                gateway_latency = (time.time() - start_time) * 1000.0
+                metrics_svc.log_gateway_metrics(
+                    getattr(request.state, "product_id", None),
+                    "RATE_LIMITED",
+                    "Requests per minute limit exceeded",
+                    gateway_latency
+                )
+                return build_error_response(
+                    code="RATE_LIMIT_EXCEEDED",
+                    message="Too Many Requests - Requests per minute limit exceeded.",
+                    status_code=429,
+                    correlation_id=correlation_id,
+                    retryable=True
+                )
+                
+            if not limiter.acquire_concurrency(
+                rate_limit_key, concurrent_limit, request_id, gateway_config.rate_limit_streaming_timeout
+            ):
+                gateway_latency = (time.time() - start_time) * 1000.0
+                metrics_svc.log_gateway_metrics(
+                    getattr(request.state, "product_id", None),
+                    "RATE_LIMITED",
+                    "Maximum concurrent requests exceeded",
+                    gateway_latency
+                )
+                return build_error_response(
+                    code="RATE_LIMIT_EXCEEDED",
+                    message="Too Many Requests - Maximum concurrent requests exceeded.",
+                    status_code=429,
+                    correlation_id=correlation_id,
+                    retryable=True
+                )
+            concurrency_acquired = True
+
+        # 3. Authentication Check
+        platform_id = getattr(request.state, "product_id", None)
+        product_db_id = getattr(request.state, "product_db_id", "")
+        product_name = getattr(request.state, "product_name", "")
+        
+        if not platform_id:
+            gateway_latency = (time.time() - start_time) * 1000.0
+            metrics_svc.log_gateway_metrics(None, "AUTH_FAILURE", "Missing or invalid Bearer Token", gateway_latency)
+            if concurrency_acquired:
+                limiter.release_concurrency(rate_limit_key, request_id)
+                concurrency_acquired = False
+            return build_error_response(
+                code="UNAUTHORIZED",
+                message="Missing or invalid platform identifier in session. Please supply valid Bearer Token.",
+                status_code=401,
+                correlation_id=correlation_id
+            )
+
+        # 4. Bot Validation Check
+        bot_id = payload.bot_id
+        bot_active = False
+        bot_err_msg = "Bot not found or inactive."
+        try:
+            bot_uuid = uuid.UUID(bot_id)
+            bot = db.query(Bot).filter(Bot.id == bot_uuid).first()
+            if bot:
+                product_uuid = uuid.UUID(product_db_id)
+                if bot.product_id != product_uuid:
+                    bot_err_msg = "Bot does not belong to the target tenant."
+                elif bot.status != "ACTIVE":
+                    bot_err_msg = "Bot is currently disabled."
+                else:
+                    bot_active = True
+            else:
+                bot_err_msg = "Bot registration not found."
+        except ValueError:
+            bot_err_msg = "Invalid bot ID UUID format."
+        except Exception as e:
+            logger.error(f"Bot database verification failed: {e}")
+            bot_err_msg = f"Bot verification failed: {e}"
+            if "connection" in str(e).lower() or "password authentication" in str(e).lower():
+                bot_active = True
+
+        if not bot_active:
+            gateway_latency = (time.time() - start_time) * 1000.0
+            try:
+                metrics_svc.log_gateway_metrics(platform_id, "VALIDATION_FAILURE", bot_err_msg, gateway_latency)
+            except Exception:
+                pass
+            if concurrency_acquired:
+                limiter.release_concurrency(rate_limit_key, request_id)
+                concurrency_acquired = False
+            return build_error_response(
+                code="FORBIDDEN",
+                message=bot_err_msg,
+                status_code=403,
+                correlation_id=correlation_id
+            )
+
+        # 5. Query Length Validation
+        if len(payload.prompt) > gateway_config.rate_limit_max_query_length:
+            gateway_latency = (time.time() - start_time) * 1000.0
+            try:
+                metrics_svc.log_gateway_metrics(
+                    platform_id,
+                    "VALIDATION_FAILURE",
+                    f"Query length {len(payload.prompt)} exceeds limit",
+                    gateway_latency
+                )
+            except Exception:
+                pass
+            if concurrency_acquired:
+                limiter.release_concurrency(rate_limit_key, request_id)
+                concurrency_acquired = False
+            return build_error_response(
+                code="BAD_REQUEST",
+                message=f"Query exceeds the maximum permitted length of {gateway_config.rate_limit_max_query_length} characters.",
+                status_code=400,
+                correlation_id=correlation_id
+            )
+
+        # Build Validated Runtime Context
+        validated_ctx = ValidatedRuntimeContext(
+            platform_id=platform_id,
+            product_db_id=product_db_id,
+            bot_id=bot_id,
+            product_name=product_name
+        )
+
+        # 6. Execute RAG Pipeline Retrieval
+        rag_engine = ContextIsolationRoutingEngine(config=gateway_config)
+        rag_response = await rag_engine.retrieve(
+            platform_id=platform_id,
+            query=payload.prompt,
+            conversation_id=compat_payload.conversation_id,
+            chat_history=payload.chat_history,
+            db=db,
+            validated_context=validated_ctx
+        )
+
+        # 7. Generate Bot Response
+        response_text = generate_response_text(payload.prompt, rag_response.formatted_context)
+        message_id = f"msg_{int(time.time() * 1000)}"
+        conversation_id = compat_payload.conversation_id
+        
+        # 8. Log Query Metrics (from RAG Engine)
+        try:
+            metrics_svc.log_query_metrics(
+                platform_id=rag_response.platform_id,
+                query=payload.prompt,
+                conversation_id=conversation_id,
+                retrieval_latency_ms=rag_response.retrieval_latency_ms,
+                embedding_latency_ms=rag_response.embedding_latency_ms,
+                llm_latency_ms=rag_response.llm_latency_ms,
+                top_k=rag_response.top_k,
+                similarity_scores=rag_response.similarity_scores,
+                best_similarity_score=rag_response.best_similarity_score,
+                retrieved_chunk_ids=rag_response.retrieved_chunk_ids,
+                retrieved_document_ids=rag_response.retrieved_document_ids,
+                token_usage=rag_response.token_usage,
+                fallback_triggered=rag_response.fallback_triggered
+            )
+        except Exception as ex:
+            logger.error(f"Failed to record query retrieval metrics: {ex}")
+
+        # Log Gateway Access Metrics
+        gateway_latency = (time.time() - start_time) * 1000.0
+        try:
+            metrics_svc.log_gateway_metrics(platform_id, "ACCEPTED", None, gateway_latency)
+        except Exception as ex:
+            logger.error(f"Failed to record gateway metrics: {ex}")
+
+        # Assemble stable event payload
+        event_payload = {
+            "event_id": str(uuid.uuid4()),
+            "event_version": "v1",
+            "event_type": "chat_interaction_completed",
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "platform_id": platform_id,
+            "tenant_id": product_db_id,
+            "bot_id": bot_id,
+            "session_id": conversation_id,
+            "conversation_id": conversation_id,
+            "payload": {
+                "query": payload.prompt,
+                "assistant_response": response_text,
+                "response_latency_ms": 0.0,
+                "token_usage": rag_response.token_usage
+            },
+            "metadata": {
+                "retrieval_latency_ms": rag_response.retrieval_latency_ms,
+                "embedding_latency_ms": rag_response.embedding_latency_ms,
+                "llm_latency_ms": rag_response.llm_latency_ms,
+                "top_k": rag_response.top_k,
+                "best_similarity_score": rag_response.best_similarity_score,
+                "retrieved_chunk_ids": rag_response.retrieved_chunk_ids,
+                "retrieved_document_ids": rag_response.retrieved_document_ids,
+                "fallback_triggered": rag_response.fallback_triggered
+            }
+        }
+
+        # 9. Handle Streaming (SSE) vs JSON Response
+        if payload.stream:
+            if concurrency_acquired:
+                limiter.release_concurrency(rate_limit_key, request_id)
+                concurrency_acquired = False
+
+            async def event_generator():
+                try:
+                    for char in response_text:
+                        chunk = json.dumps({"event": "text", "text": char})
+                        yield f"data: {chunk}\n\n"
+                        await asyncio.sleep(0.01)
+                        
+                    done_chunk = json.dumps({"event": "done", "message_id": message_id})
+                    yield f"data: {done_chunk}\n\n"
+                except GeneratorExit:
+                    logger.info(f"Client disconnected early from SSE stream for event {event_payload['event_id']}")
+                finally:
+                    duration_ms = (time.time() - start_time) * 1000.0
+                    event_payload["payload"]["response_latency_ms"] = duration_ms
+                    try:
+                        from src.celery_app import process_runtime_event
+                        pub_start = time.time()
+                        process_runtime_event.delay(event_payload)
+                        pub_latency = (time.time() - pub_start) * 1000.0
+                        
+                        local_db = SessionLocal()
+                        try:
+                            local_svc = MetricsService(local_db)
+                            local_svc.log_streaming_event_publish(
+                                event_id=event_payload["event_id"],
+                                event_type=event_payload["event_type"],
+                                platform_id=event_payload["platform_id"],
+                                bot_id=event_payload["bot_id"],
+                                conversation_id=event_payload["conversation_id"],
+                                publish_latency_ms=pub_latency,
+                                status="PUBLISHED"
+                            )
+                        finally:
+                            local_db.close()
+                    except Exception as e:
+                        logger.error(f"Failed to publish runtime SSE streaming event clone: {e}")
+
+            return StreamingResponse(
+                event_generator(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "Connection": "keep-alive",
+                    "X-Accel-Buffering": "no",
+                }
+            )
+        else:
+            if concurrency_acquired:
+                limiter.release_concurrency(rate_limit_key, request_id)
+                concurrency_acquired = False
+                
+            duration_ms = (time.time() - start_time) * 1000.0
+            event_payload["payload"]["response_latency_ms"] = duration_ms
+            
+            try:
+                from src.celery_app import process_runtime_event
+                pub_start = time.time()
+                process_runtime_event.delay(event_payload)
+                pub_latency = (time.time() - pub_start) * 1000.0
+                
+                metrics_svc.log_streaming_event_publish(
+                    event_id=event_payload["event_id"],
+                    event_type=event_payload["event_type"],
+                    platform_id=event_payload["platform_id"],
+                    bot_id=event_payload["bot_id"],
+                    conversation_id=event_payload["conversation_id"],
+                    publish_latency_ms=pub_latency,
+                    status="PUBLISHED"
+                )
+            except Exception as e:
+                logger.error(f"Failed to publish runtime event clone: {e}")
+                
+            return {
+                "success": True,
+                "message": {
+                    "id": message_id,
+                    "conversation_id": conversation_id,
+                    "sender": "bot",
+                    "text": response_text,
+                    "timestamp": datetime.utcnow().isoformat() + "Z"
+                }
+            }
+
+    except Exception as e:
+        logger.exception(f"Unhandled chat_stream exception: {e}")
+        gateway_latency = (time.time() - start_time) * 1000.0
+        try:
+            metrics_svc.log_gateway_metrics(platform_id, "INTERNAL_ERROR", str(e), gateway_latency)
+        except Exception:
+            pass
+        if concurrency_acquired:
+            limiter.release_concurrency(rate_limit_key, request_id)
+            concurrency_acquired = False
+        return build_error_response(
+            code="SERVICE_UNAVAILABLE",
+            message="Internal streaming processing error.",
+            status_code=500,
+            correlation_id=correlation_id
+        )
+
 

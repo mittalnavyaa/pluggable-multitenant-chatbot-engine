@@ -253,10 +253,10 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
             metrics_service.mark_failed(document_id)
             
             try:
-                logger.info(f"Permanent failure. Cleaning up storage object: {storage_path}")
-                minio_client.remove_object(BUCKET_NAME, storage_path)
-                cleaned_storage_path = f"{os.path.splitext(storage_path)[0]}_cleaned.md"
-                minio_client.remove_object(BUCKET_NAME, cleaned_storage_path)
+                logger.info(f"Permanent failure. [DEBUG] Skipping storage object cleanup: {storage_path}")
+                # minio_client.remove_object(BUCKET_NAME, storage_path)
+                # cleaned_storage_path = f"{os.path.splitext(storage_path)[0]}_cleaned.md"
+                # minio_client.remove_object(BUCKET_NAME, cleaned_storage_path)
             except Exception as e:
                 logger.error(f"Failed cleanup of storage objects: {e}")
                 
@@ -327,7 +327,11 @@ def process_chunking(self, payload: dict):
         # 3. Perform Chunking using ChunkingService
         logger.info("Chunking document...")
         bot = db.query(Bot).filter(Bot.id == doc.bot_id).first()
-        product_id = str(bot.product_id) if bot else "default-product"
+        if bot:
+            product = db.query(InternalProduct).filter(InternalProduct.id == bot.product_id).first()
+            product_id = product.product_id if product else "default-product"
+        else:
+            product_id = "default-product"
 
         chunking_service = ChunkingService(
             chunk_size=1000,
@@ -402,3 +406,113 @@ def process_chunking(self, payload: dict):
             raise exc
     finally:
         db.close()
+
+
+@celery_app.task(
+    name="src.celery_app.process_runtime_event",
+    bind=True,
+    max_retries=3,
+)
+def process_runtime_event(self, payload: dict):
+    """Processes the decoupled runtime chat event in the background worker."""
+    import time
+    import datetime
+    import redis
+    import uuid
+    
+    start_time = time.perf_counter()
+    event_id = payload.get("event_id")
+    conversation_id = payload.get("conversation_id")
+    platform_id = payload.get("platform_id")
+    bot_id = payload.get("bot_id")
+    timestamp_str = payload.get("timestamp")
+    
+    logger.info(f"Background worker processing event_id={event_id} for conversation_id={conversation_id}")
+    
+    # Calculate queue latency
+    queue_latency_ms = 0.0
+    if timestamp_str:
+        try:
+            created_at = datetime.datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+            utc_now = datetime.datetime.now(datetime.timezone.utc)
+            queue_latency_ms = (utc_now - created_at).total_seconds() * 1000.0
+        except Exception as e:
+            logger.error(f"Failed to parse event timestamp {timestamp_str}: {e}")
+            
+    db = SessionLocal()
+    metrics_svc = MetricsService(db)
+    
+    try:
+        # 1. Idempotency Check using Redis
+        redis_client = redis.Redis.from_url(REDIS_URL, socket_timeout=2.0)
+        idempotency_key = f"processed_event:{event_id}"
+        
+        is_new = redis_client.set(idempotency_key, "1", ex=86400, nx=True)
+        if not is_new:
+            logger.warning(f"Duplicate event detected: event_id={event_id}. Skipping processing.")
+            metrics_svc.update_streaming_event_status(
+                event_id=event_id,
+                status="DUPLICATE",
+                worker_latency_ms=(time.perf_counter() - start_time) * 1000.0,
+                queue_latency_ms=queue_latency_ms
+            )
+            return {"status": "DUPLICATE", "event_id": event_id}
+            
+        # 2. Ordering Validation Check using Redis
+        order_key = f"last_event_time:{conversation_id}"
+        current_time_epoch = float(datetime.datetime.fromisoformat(timestamp_str.replace("Z", "+00:00")).timestamp())
+        
+        last_time_str = redis_client.get(order_key)
+        if last_time_str:
+            last_time_epoch = float(last_time_str.decode("utf-8"))
+            if current_time_epoch < last_time_epoch:
+                logger.warning(f"Out-of-order event detected for conversation {conversation_id}. Current timestamp is older than last processed timestamp.")
+            
+        redis_client.set(order_key, str(current_time_epoch))
+
+        # 3. Multi-Tenant Isolation Check
+        from src.models.internal_product import InternalProduct
+        product = db.query(InternalProduct).filter(InternalProduct.product_id == platform_id).first()
+        if not product:
+            raise ValueError(f"Multi-tenant isolation breach: platform {platform_id} not registered.")
+        if getattr(product, "status", "ACTIVE") != "ACTIVE":
+            raise ValueError(f"Multi-tenant isolation warning: platform {platform_id} is disabled.")
+            
+        # 4. Route Event to Downstream Consumers
+        # Simulated consumer modules (intent classification, sales lead extraction, auditing stubs)
+        logger.info(f"Successfully processed event {event_id}. Query: '{payload['payload']['query'][:30]}', Response: '{payload['payload']['assistant_response'][:30]}'")
+        
+        # 5. Record Success Metrics
+        worker_latency_ms = (time.perf_counter() - start_time) * 1000.0
+        metrics_svc.update_streaming_event_status(
+            event_id=event_id,
+            status="PROCESSED",
+            worker_latency_ms=worker_latency_ms,
+            queue_latency_ms=queue_latency_ms
+        )
+        
+        return {"status": "SUCCESS", "event_id": event_id}
+        
+    except Exception as exc:
+        logger.error(f"Error processing background event {event_id}: {exc}")
+        worker_latency_ms = (time.perf_counter() - start_time) * 1000.0
+        
+        metrics_svc.update_streaming_event_status(
+            event_id=event_id,
+            status="FAILED",
+            worker_latency_ms=worker_latency_ms,
+            queue_latency_ms=queue_latency_ms,
+            error_message=str(exc)
+        )
+        
+        if self.request.retries < self.max_retries:
+            countdown = (2 ** self.request.retries) * 2
+            logger.info(f"Retry event process attempt {self.request.retries + 1} in {countdown} seconds...")
+            raise self.retry(exc=exc, countdown=countdown)
+        else:
+            logger.error(f"Maximum retries exhausted for background event {event_id}")
+            raise exc
+            
+    finally:
+        db.close()
+

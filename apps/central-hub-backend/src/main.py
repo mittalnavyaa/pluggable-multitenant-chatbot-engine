@@ -7,7 +7,7 @@ from src.routers.bots import router as bots_router
 from src.routers.products import router as products_router
 from src.routers.dashboard import router as dashboard_router
 from src.routers.analytics import router as analytics_router
-from src.routers.query import router as query_router
+from src.routers.query import router as query_router, chat_router
 from src.services.storage_service import initialize_bucket
 from src.services.qdrant_service import ensure_collection_initialized
 
@@ -29,6 +29,7 @@ app.include_router(products_router)
 app.include_router(dashboard_router)
 app.include_router(analytics_router)
 app.include_router(query_router)
+app.include_router(chat_router)
 
 @app.on_event("startup")
 def startup():
@@ -38,7 +39,7 @@ def startup():
     # Create all registered metadata tables (e.g. document_processing_metrics)
     from src.database.database import engine
     from src.database.base import Base
-    from src.models.analytics import DocumentProcessingMetrics, QueryRetrievalMetrics, GatewayMetrics
+    from src.models.analytics import DocumentProcessingMetrics, QueryRetrievalMetrics, GatewayMetrics, StreamingEventMetrics
     from src.models.internal_product import InternalProduct
     try:
         Base.metadata.create_all(bind=engine)

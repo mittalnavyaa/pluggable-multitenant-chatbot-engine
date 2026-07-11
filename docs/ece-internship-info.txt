@@ -1,0 +1,19 @@
+ECE INTERNSHIP PROGRAM INFORMATION
+==================================
+
+Overview:
+The Electronics and Communication Engineering (ECE) Internship at Tensor is a 6-month hands-on program designed for undergraduate and graduate students. Interns work alongside senior engineers to design, build, and test next-generation hardware and software components.
+
+Key Details:
+- Duration: 6 months (Full-time or Part-time options available).
+- Location: Hybrid (2 days in-office, 3 days remote).
+- Stipend: Highly competitive monthly stipend with performance-based bonuses.
+- Mentor: Every intern is paired with a dedicated senior mentor.
+
+Eligible Projects:
+1. Signal Processing: Develop and optimize algorithms for real-time sensor data filtering.
+2. Embedded Systems: Write firmware in C/C++ for low-power microcontroller boards.
+3. System Integration: Test interface circuits and validate software-hardware communication protocols.
+
+How to Apply:
+Applications open every semester. Interested candidates must submit their resume, academic transcripts, and a cover letter detailing their project experience through the Tensor Career Portal.

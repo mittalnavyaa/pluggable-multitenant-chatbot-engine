@@ -336,40 +336,19 @@ app.get('/api/v1/products/:productId', (req, res) => {
 app.post(
   '/api/v1/chat',
   middleware.requestMiddleware,   // ← SDK validates bot_id and prompt
-  (req, res) => {
+  async (req, res, next) => {
     const { bot_id, conversation_id, prompt, stream } = req.body;
 
-    console.log(`[envoy-server] Chat request — bot: ${bot_id}, stream: ${stream}, prompt: "${prompt}"`);
+    console.log(`[envoy-server] Chat request forwarding to core backend — bot: ${bot_id}, prompt: "${prompt}"`);
 
-    // If the client requested streaming, redirect to the SSE endpoint.
-    // In production the proxyMiddleware handles this automatically.
-    if (stream === true) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'BAD_REQUEST',
-          message: 'For streaming responses, use GET /api/v1/chat/stream with query parameters.',
-          correlation_id: `req-${Date.now()}`,
-          timestamp: new Date().toISOString(),
-          retryable: false,
-        },
-      });
+    try {
+      const client = sdk.getClient();
+      const response = await client.queryChatbot(bot_id, prompt, false);
+      res.status(200).json(response.data);
+    } catch (err) {
+      console.error('[envoy-server] Core backend query failed:', err.message);
+      next(err);
     }
-
-    // Generate a mock response based on the prompt content
-    const responseText = getMockResponse(prompt);
-
-    // Return a ChatResponse matching the shared-contracts interface
-    res.json({
-      success: true,
-      message: {
-        id:              `msg_${Date.now()}`,
-        conversation_id: conversation_id || `conv_${Date.now()}`,
-        sender:          'bot',
-        text:            responseText,
-        timestamp:       new Date().toISOString(),
-      },
-    });
   }
 );
 
@@ -387,7 +366,7 @@ app.post(
 //
 // Each chunk matches the StreamingChunk union type from @envoy/shared-contracts.
 //
-app.get('/api/v1/chat/stream', (req, res) => {
+app.get('/api/v1/chat/stream', async (req, res, next) => {
   const { bot_id, prompt } = req.query;
 
   if (!bot_id || !prompt) {
@@ -403,45 +382,45 @@ app.get('/api/v1/chat/stream', (req, res) => {
     });
   }
 
-  console.log(`[envoy-server] SSE stream — bot: ${bot_id}, prompt: "${prompt}"`);
+  console.log(`[envoy-server] SSE stream forwarding to core backend — bot: ${bot_id}, prompt: "${prompt}"`);
 
-  // Set SSE headers — these tell the browser to keep the connection open
-  // and treat each line as a server-sent event
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering if behind a proxy
-  res.flushHeaders();
+  try {
+    // Set SSE headers — these tell the browser to keep the connection open
+    // and treat each line as a server-sent event
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering if behind a proxy
+    res.flushHeaders();
 
-  // Generate the full mock response text
-  const fullText = getMockResponse(String(prompt));
-  const messageId = `msg_${Date.now()}`;
+    const client = sdk.getClient();
+    const responseStream = await client.queryChatbot(String(bot_id), String(prompt), true);
 
-  // Split the response into individual characters and stream them one by one.
-  // This simulates the token-by-token streaming from a real LLM.
-  // Each chunk matches the StreamingTextChunk interface: { event: 'text', text: string }
-  let charIndex = 0;
-  const streamInterval = setInterval(() => {
-    if (charIndex < fullText.length) {
-      // Send one character at a time as an SSE data event
-      const chunk = { event: 'text', text: fullText[charIndex] };
-      res.write(`data: ${JSON.stringify(chunk)}\n\n`);
-      charIndex++;
-    } else {
-      // Send the completion event matching StreamingDoneChunk: { event: 'done', message_id: string }
-      const doneChunk = { event: 'done', message_id: messageId };
-      res.write(`data: ${JSON.stringify(doneChunk)}\n\n`);
-      clearInterval(streamInterval);
+    responseStream.on('data', (chunk) => {
+      res.write(chunk);
+    });
+
+    responseStream.on('end', () => {
       res.end();
-      console.log(`[envoy-server] SSE stream complete — message: ${messageId}`);
-    }
-  }, 20); // 20ms per character ≈ realistic LLM streaming speed
+    });
 
-  // Clean up if the client disconnects before the stream finishes
-  req.on('close', () => {
-    clearInterval(streamInterval);
-    console.log(`[envoy-server] SSE client disconnected — stream cancelled.`);
-  });
+    responseStream.on('error', (err) => {
+      console.error('[envoy-server] Core backend stream error:', err);
+      res.write(`data: ${JSON.stringify({ event: 'error', error: err.message })}\n\n`);
+      res.end();
+    });
+
+    req.on('close', () => {
+      if (responseStream.destroy) {
+        responseStream.destroy();
+      }
+    });
+
+  } catch (err) {
+    console.error('[envoy-server] Core backend stream connection failed:', err.message);
+    res.write(`data: ${JSON.stringify({ event: 'error', error: err.message })}\n\n`);
+    res.end();
+  }
 });
 
 // ─── Error handler ────────────────────────────────────────────────────────────

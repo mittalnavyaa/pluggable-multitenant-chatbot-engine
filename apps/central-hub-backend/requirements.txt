@@ -16,3 +16,4 @@ PyPDF2
 python-docx
 tiktoken==0.8.0
 sentence-transformers
+pydantic-settings
