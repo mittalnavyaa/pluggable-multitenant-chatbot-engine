@@ -8,7 +8,7 @@ async def authenticate_request(request: Request, call_next):
     path = request.url.path
 
     # Authenticate requests to tenant/bot/document management endpoints
-    if path.startswith(("/api/v1/bots", "/api/v1/documents", "/api/v1/dashboard", "/api/v1/chat")):
+    if path.startswith(("/api/v1/bots", "/api/v1/documents", "/api/v1/dashboard", "/api/v1/chat", "/api/v1/analytics")):
         auth_header = request.headers.get("Authorization")
         api_key_header = request.headers.get("X-Envoy-API-Key")
         token = None

@@ -39,7 +39,7 @@ def startup():
     # Create all registered metadata tables (e.g. document_processing_metrics)
     from src.database.database import engine
     from src.database.base import Base
-    from src.models.analytics import DocumentProcessingMetrics, QueryRetrievalMetrics, GatewayMetrics, StreamingEventMetrics
+    from src.models.analytics import DocumentProcessingMetrics, QueryRetrievalMetrics, GatewayMetrics, StreamingEventMetrics, ChatSessionAnalytics, ChatMessageAnalytics, HourlyTenantAnalytics
     from src.models.internal_product import InternalProduct
     try:
         Base.metadata.create_all(bind=engine)

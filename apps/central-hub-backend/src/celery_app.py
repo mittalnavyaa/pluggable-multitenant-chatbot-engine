@@ -480,6 +480,11 @@ def process_runtime_event(self, payload: dict):
             
         # 4. Route Event to Downstream Consumers
         # Simulated consumer modules (intent classification, sales lead extraction, auditing stubs)
+        try:
+            metrics_svc.log_chat_telemetry(payload)
+        except Exception as e:
+            logger.error(f"Failed to log chat telemetry in background task: {e}")
+
         logger.info(f"Successfully processed event {event_id}. Query: '{payload['payload']['query'][:30]}', Response: '{payload['payload']['assistant_response'][:30]}'")
         
         # 5. Record Success Metrics
