@@ -567,16 +567,14 @@ export function useAnalyticsData(
     ]);
   }, []);
 
-  // Handle active data fetching lifecycle
+  // Handle REST data fetching on selectedProductId or dateRange change
   useEffect(() => {
     fetchAllData();
-    connectWebSocket();
+  }, [selectedProductId, dateRange, fetchAllData]);
 
-    pollingIntervalRef.current = setInterval(() => {
-      if (wsStatus === 'polling' || wsStatus === 'disconnected') {
-        fetchAllData(true);
-      }
-    }, 10000);
+  // Handle WebSocket connection lifecycle on selectedProductId change
+  useEffect(() => {
+    connectWebSocket();
 
     return () => {
       if (wsRef.current) {
@@ -586,11 +584,24 @@ export function useAnalyticsData(
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
+    };
+  }, [selectedProductId, connectWebSocket]);
+
+  // Handle fallback polling interval when WebSocket is not active
+  useEffect(() => {
+    if (wsStatus === 'polling' || wsStatus === 'disconnected') {
+      pollingIntervalRef.current = setInterval(() => {
+        fetchAllData(true);
+      }, 10000);
+    }
+
+    return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
       }
     };
-  }, [selectedProductId, dateRange, fetchAllData, connectWebSocket, wsStatus]);
+  }, [wsStatus, fetchAllData]);
 
   const refresh = useCallback(() => {
     fetchAllData(true);
