@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://chatbot:chatbot123@localhost:5432/chatbot_db"
+    "postgresql://chatbot:chatbot123@localhost:5433/chatbot_db"
 )
 
 engine = create_engine(
