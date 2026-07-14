@@ -3,6 +3,7 @@ import { useEnterpriseDashboardData } from './hooks/useEnterpriseDashboardData';
 import { DashboardLayout } from './layouts/DashboardLayout.jsx';
 import { AdminDashboard } from './pages/AdminDashboard.jsx';
 import { ApiKeys } from './pages/ApiKeys.jsx';
+import { Bots } from './pages/Bots.jsx';
 import { Branding } from './pages/Branding.jsx';
 import { Dashboard } from './pages/Dashboard.jsx';
 import { Documents } from './pages/Documents.jsx';
@@ -12,6 +13,7 @@ import { Settings } from './pages/Settings.jsx';
 import { Uploads } from './pages/Uploads';
 import { AnalyticsWorkspace } from './pages/AnalyticsWorkspace';
 import { EnvoyDashboard } from './pages/EnvoyDashboard';
+import { KnowledgeMetrics } from './pages/KnowledgeMetrics';
 import {
   ConversationsPlaceholder,
   KnowledgeBasePlaceholder,
@@ -47,6 +49,7 @@ export function DashboardApp() {
     'Ingestion Status Queues': <Documents documents={data.documents} />,
     'Sales Conversions': <AdminDashboard />,
     Products: <Products products={data.products} onViewDetails={viewDetails} />,
+    Bots: <Bots products={data.products} />,
     'Product Details': selectedProduct ? <ProductDetails product={selectedProduct} /> : <div style={{ padding: '24px', color: 'var(--color-text)' }}>No product selected.</div>,
     Branding: selectedProduct ? <Branding product={selectedProduct} /> : <div style={{ padding: '24px', color: 'var(--color-text)' }}>Please select a product.</div>,
     Uploads: <Uploads />,
@@ -55,7 +58,11 @@ export function DashboardApp() {
 
   return (
     <DashboardLayout activePage={activePage} onNavigate={setActivePage}>
-      {pages[activePage]}
+      {pages[activePage] ?? (
+        <div style={{ padding: '32px 24px', color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+          Page not found: <strong>{activePage}</strong>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

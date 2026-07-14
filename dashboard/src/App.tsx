@@ -12,6 +12,7 @@ import { Products } from '../pages/Products.jsx';
 import { Settings } from '../pages/Settings.jsx';
 import { Uploads } from '../pages/Uploads';
 import { KnowledgeMetrics } from '../pages/KnowledgeMetrics';
+import { Bots } from '../pages/Bots.jsx';
 import { AnalyticsWorkspace } from '../pages/AnalyticsWorkspace';
 import { EnvoyDashboard } from '../pages/EnvoyDashboard';
 import {
@@ -29,6 +30,7 @@ const routeTitles: Record<string, string> = {
   '/': 'Dashboard Scaffold',
   '/admin': 'Overview Dashboard',
   '/products': 'Products',
+  '/bots': 'Bots',
   '/branding': 'Branding',
   '/api-keys': 'API Keys',
   '/documents': 'Documents',
@@ -67,6 +69,11 @@ function ProductDetailsRoute() {
   return <ProductDetails product={product} />;
 }
 
+function BotsRoute() {
+  const data = useEnterpriseDashboardData();
+  return <Bots products={data.products} />;
+}
+
 function BrandingRoute() {
   const data = useEnterpriseDashboardData();
   if (!data.selectedProduct) {
@@ -87,6 +94,7 @@ function DashboardApp() {
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/products" element={<ProductsRoute />} />
         <Route path="/products/:id" element={<ProductDetailsRoute />} />
+        <Route path="/bots" element={<BotsRoute />} />
         <Route path="/branding" element={<BrandingRoute />} />
         <Route path="/api-keys" element={<ApiKeys keyRecords={data.keyRecords} />} />
         <Route path="/documents" element={<Documents documents={data.documents} />} />

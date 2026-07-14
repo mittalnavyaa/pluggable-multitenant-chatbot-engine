@@ -62,6 +62,15 @@ const icons = {
       <path d="M2 4h12M2 8h12M2 12h7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
     </svg>
   ),
+  Bots: (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="3" y="5" width="10" height="8" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+      <path d="M6 5V3.5a2 2 0 0 1 4 0V5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      <circle cx="6" cy="9" r="1" fill="currentColor"/>
+      <circle cx="10" cy="9" r="1" fill="currentColor"/>
+      <path d="M6 11h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+    </svg>
+  ),
   Branding: (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5"/>
@@ -98,6 +107,7 @@ const scaffoldNavItems = [
 const platformNavItems = [
   { label: 'Overview Dashboard', path: '/admin' },
   { label: 'Products', path: '/products' },
+  { label: 'Bots', path: '/bots' },
   { label: 'Branding', path: '/branding' },
   { label: 'Uploads', path: '/uploads' },
   { label: 'API Keys', path: '/api-keys' }
