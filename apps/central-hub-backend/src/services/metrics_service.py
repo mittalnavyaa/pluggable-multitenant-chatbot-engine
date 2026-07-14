@@ -270,25 +270,32 @@ class MetricsService:
         tenant_uuid = uuid.UUID(str(tenant_id)) if tenant_id else None
         bot_uuid = uuid.UUID(str(bot_id)) if bot_id else None
 
-        # Heuristic 1: Intent classification
-        query_lower = query_text.lower()
-        intent = "KNOWLEDGE_QUERY"
-        if any(kw in query_lower for kw in ["help", "support", "issue", "bug", "broken", "error", "fail", "trouble"]):
-            intent = "SUPPORT"
-        elif any(kw in query_lower for kw in ["price", "pricing", "cost", "subscription", "plan", "billing", "quote", "buy"]):
-            intent = "PRICING"
-        elif any(kw in query_lower for kw in ["demo", "sales", "contact", "call", "enterprise", "business", "meeting"]):
-            intent = "SALES"
-        elif any(kw in query_lower for kw in ["hi", "hello", "hey", "greetings"]):
-            intent = "GREETING"
+        # Pre-classified overrides or heuristic fallbacks
+        intent = event_payload.get("intent")
+        is_sales_lead = event_payload.get("is_sales_lead")
+        lead_status = event_payload.get("lead_status")
 
-        # Heuristic 2: Sales Lead tracking
-        email_regex = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
-        has_email = bool(re.search(email_regex, query_text))
-        has_phone = bool(re.search(r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b", query_text))
-        commercial_intent = any(kw in query_lower for kw in ["pricing", "cost", "buy", "sales", "enterprise", "demo", "quote", "meeting"])
-        is_sales_lead = has_email or has_phone or commercial_intent
-        lead_status = "NEW" if is_sales_lead else None
+        if intent is None or is_sales_lead is None:
+            # Heuristic 1: Intent classification fallback
+            query_lower = query_text.lower()
+            intent = "KNOWLEDGE_QUERY"
+            if any(kw in query_lower for kw in ["help", "support", "issue", "bug", "broken", "error", "fail", "trouble"]):
+                intent = "SUPPORT"
+            elif any(kw in query_lower for kw in ["price", "pricing", "cost", "subscription", "plan", "billing", "quote", "buy"]):
+                intent = "PRICING"
+            elif any(kw in query_lower for kw in ["demo", "sales", "contact", "call", "enterprise", "business", "meeting"]):
+                intent = "SALES"
+            elif any(kw in query_lower for kw in ["hi", "hello", "hey", "greetings"]):
+                intent = "GREETING"
+
+            # Heuristic 2: Sales Lead tracking fallback
+            email_regex = r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+"
+            has_email = bool(re.search(email_regex, query_text))
+            has_phone = bool(re.search(r"\b\d{3}[-.]?\d{3}[-.]?\d{4}\b", query_text))
+            commercial_intent = any(kw in query_lower for kw in ["pricing", "cost", "buy", "sales", "enterprise", "demo", "quote", "meeting"])
+            is_sales_lead = has_email or has_phone or commercial_intent
+            lead_status = "NEW" if is_sales_lead else None
+
 
         # Heuristic 3: Resolution Rate tracking
         metadata = event_payload.get("metadata", {})
