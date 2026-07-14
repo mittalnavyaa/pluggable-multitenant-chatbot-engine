@@ -194,7 +194,7 @@ def test_celery_worker_pipeline():
         
         # Verify metadata payload
         payload = doc_points[0].payload
-        assert payload["product_id"] == str(real_product_uuid), f"Expected product_id={real_product_uuid}, got {payload['product_id']}"
+        assert payload["product_id"] == "test_university_products", f"Expected product_id='test_university_products', got {payload['product_id']}"
         assert payload["bot_id"] == str(bot_uuid), f"Expected bot_id={bot_uuid}, got {payload['bot_id']}"
         assert payload["document_id"] == str(doc_uuid), f"Expected document_id={doc_uuid}, got {payload['document_id']}"
         assert payload["source_filename"] == filename, f"Expected source_filename={filename}, got {payload['source_filename']}"

@@ -32,6 +32,14 @@ export default defineConfig({
       '/api/v1/dashboard': {
         target: 'http://localhost:8000',
         changeOrigin: true
+      },
+      '/api/v1/analytics': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
+      },
+      '/api/v1/chat': {
+        target: 'http://localhost:8000',
+        changeOrigin: true
       }
     }
   },
