@@ -13,9 +13,11 @@ import { Products } from '../pages/Products.jsx';
 import { Settings } from '../pages/Settings.jsx';
 import { Uploads } from '../pages/Uploads';
 import { KnowledgeMetrics } from '../pages/KnowledgeMetrics';
+import { AnalyticsWorkspace } from '../pages/AnalyticsWorkspace';
 import { Login } from './pages/Login';
 import '../styles/dashboard.css';
 import '../styles/knowledge-metrics.css';
+import '../styles/analytics.css';
 
 const routeTitles: Record<string, string> = {
   '/': 'Dashboard',
@@ -25,6 +27,7 @@ const routeTitles: Record<string, string> = {
   '/api-keys': 'API Keys',
   '/documents': 'Documents',
   '/knowledge-metrics': 'Knowledge Metrics Workspace',
+  '/analytics': 'Analytics Workspace',
   '/uploads': 'Upload Manager',
   '/settings': 'Settings'
 };
@@ -78,6 +81,7 @@ function DashboardApp() {
         <Route path="/api-keys" element={<ApiKeys keyRecords={data.keyRecords} />} />
         <Route path="/documents" element={<Documents documents={data.documents} />} />
         <Route path="/knowledge-metrics" element={<KnowledgeMetrics />} />
+        <Route path="/analytics" element={<AnalyticsWorkspace />} />
         <Route path="/uploads" element={<Uploads />} />
         <Route path="/settings" element={<Settings settings={data.settings} />} />
         <Route path="*" element={<Navigate to="/" replace />} />

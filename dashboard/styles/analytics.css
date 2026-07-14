@@ -1,0 +1,384 @@
+/* ── Analytics Workspace Stylesheet ──────────────── */
+
+.analytics-filters {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 24px;
+}
+
+.analytics-filters__left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.analytics-filters__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.filter-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  letter-spacing: 0.05em;
+}
+
+.filter-select {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 140px;
+  outline: none;
+  transition: border-color 0.15s ease-in-out;
+}
+
+.filter-select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+/* ── WebSocket Connection Status Badges ────────── */
+
+.ws-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ws-badge__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.ws-badge--connected {
+  background: var(--badge-success-bg);
+  color: var(--badge-success-text);
+}
+
+.ws-badge--connecting {
+  background: var(--badge-warning-bg);
+  color: var(--badge-warning-text);
+}
+
+.ws-badge--polling {
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+}
+
+.ws-badge--disconnected {
+  background: var(--badge-danger-bg);
+  color: var(--badge-danger-text);
+}
+
+@keyframes pulse-kf {
+  0% { transform: scale(0.95); opacity: 0.5; }
+  50% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.5; }
+}
+
+.ws-badge__dot--pulse {
+  animation: pulse-kf 1.5s infinite ease-in-out;
+}
+
+/* ── KPI Cards Grid ────────────────────────────── */
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.kpi-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 120px;
+  position: relative;
+  transition: all 0.2s ease-in-out;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+}
+
+/* Live update highlight glow */
+.kpi-card--pulse {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 12px rgba(79, 70, 229, 0.25);
+}
+
+.kpi-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.kpi-card__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.kpi-card__icon {
+  color: var(--color-text-faint);
+  display: flex;
+  align-items: center;
+}
+
+.kpi-card__body {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.kpi-card__value {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1;
+}
+
+.kpi-card__trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.kpi-card__trend--up {
+  background: var(--badge-success-bg);
+  color: var(--badge-success-text);
+}
+
+.kpi-card__trend--down {
+  background: var(--badge-danger-bg);
+  color: var(--badge-danger-text);
+}
+
+.kpi-card__detail {
+  font-size: 11px;
+  color: var(--color-text-faint);
+}
+
+.kpi-card--error {
+  border-color: var(--badge-danger-text);
+  background: rgba(185, 28, 28, 0.02);
+}
+
+.kpi-card__error-msg {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--badge-danger-text);
+  margin-bottom: 4px;
+}
+
+/* ── Panels Split Layouts ────────────────────────── */
+
+.analytics-content-split {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  margin-top: 16px;
+}
+
+@media (max-width: 768px) {
+  .analytics-content-split {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.analytics-chart-container {
+  min-width: 0;
+}
+
+.analytics-details-aside {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.metric-aside-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px dashed var(--color-border);
+  padding-bottom: 8px;
+}
+
+.metric-aside-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.metric-aside-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.metric-aside-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.analytics-empty-state {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  border: 1px dashed var(--color-border);
+  border-radius: 8px;
+  padding: 20px;
+  background: var(--color-bg);
+}
+
+/* ── User Engagement Grid ─────────────────────── */
+
+.engagement-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-top: 12px;
+}
+
+@media (max-width: 1024px) {
+  .engagement-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .engagement-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.engagement-card {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.engagement-card__title {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  letter-spacing: 0.05em;
+}
+
+.engagement-metric-val {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.engagement-card__value {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.engagement-card__detail {
+  font-size: 11px;
+  color: var(--color-text-faint);
+  margin-top: 8px;
+}
+
+/* ── Paginated Searchable Tables ───────────────── */
+
+.table-toolbar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.analytics-table th {
+  border-bottom: 2px solid var(--color-border);
+  user-select: none;
+}
+
+.analytics-table tr:hover {
+  background: rgba(79, 70, 229, 0.02);
+}
+
+/* ── Health Check Badges ───────────────────────── */
+
+.health-badge {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.health-badge--healthy {
+  background: var(--badge-success-bg);
+  color: var(--badge-success-text);
+}
+
+.health-badge--warning {
+  background: var(--badge-warning-bg);
+  color: var(--badge-warning-text);
+}
+
+.health-badge--error {
+  background: var(--badge-danger-bg);
+  color: var(--badge-danger-text);
+}

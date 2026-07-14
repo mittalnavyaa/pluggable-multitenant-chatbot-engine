@@ -10,6 +10,7 @@ import { ProductDetails } from './pages/ProductDetails.jsx';
 import { Products } from './pages/Products.jsx';
 import { Settings } from './pages/Settings.jsx';
 import { Uploads } from './pages/Uploads';
+import { AnalyticsWorkspace } from './pages/AnalyticsWorkspace';
 import './styles/dashboard.css';
 
 export function DashboardApp() {
@@ -35,6 +36,7 @@ export function DashboardApp() {
     Uploads: <Uploads />,
     'API Keys': <ApiKeys keyRecords={data.keyRecords} />,
     Documents: <Documents documents={data.documents} />,
+    'Analytics Workspace': <AnalyticsWorkspace />,
     Settings: <Settings settings={data.settings} />
   };
 

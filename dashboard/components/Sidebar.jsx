@@ -72,6 +72,11 @@ const icons = {
       <path d="M6 8h4M6 10h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
     </svg>
   ),
+  'Analytics Workspace': (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M2 14V8m4 6V4m4 10V9m4 5V6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
   Settings: (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
       <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.5"/>
@@ -92,6 +97,7 @@ const navItems = [
   { label: 'API Keys', path: '/api-keys' },
   { label: 'Documents', path: '/documents' },
   { label: 'Knowledge Metrics', path: '/knowledge-metrics' },
+  { label: 'Analytics Workspace', path: '/analytics' },
   { label: 'Settings', path: '/settings' }
 ];
 
