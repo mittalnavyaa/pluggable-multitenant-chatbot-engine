@@ -1,4 +1,4 @@
-﻿"""Base abstraction for Markdown-cleaning LLM providers."""
+"""Base abstraction for Markdown-cleaning LLM providers."""
 
 from __future__ import annotations
 
@@ -31,3 +31,12 @@ class BaseLLMProvider(ABC):
         cleaning_prompt: str,
     ) -> str:
         """Return cleaned Markdown for raw extracted text."""
+
+    @abstractmethod
+    def generate(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.0,
+        max_tokens: int | None = None,
+    ) -> str:
+        """Query LLM model using standard chat messages list."""

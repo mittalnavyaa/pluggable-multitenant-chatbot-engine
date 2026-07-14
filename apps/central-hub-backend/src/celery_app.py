@@ -419,3 +419,33 @@ def process_runtime_event(self, payload: dict):
     return TelemetryPipeline.execute(payload, self)
 
 
+@celery_app.task(
+    name="src.celery_app.classify_session_intent",
+    bind=True,
+    max_retries=3,
+)
+def classify_session_intent(self, session_id: str, platform_id: str):
+    """Asynchronous intent classification running as part of telemetry processing."""
+    logger.info(f"Asynchronous Intent Classification task started for session: {session_id}")
+    from src.analytics.intent_classification.classifier import IntentClassifierService
+    db = SessionLocal()
+    try:
+        classifier = IntentClassifierService(db=db)
+        result = classifier.classify_session(session_id=session_id, platform_id=platform_id)
+        return {
+            "status": "COMPLETED",
+            "session_id": session_id,
+            "intent": result.intent,
+            "confidence": result.confidence
+        }
+    except Exception as exc:
+        logger.error(f"Intent Classification failed for session {session_id}: {exc}")
+        if self.request.retries < self.max_retries:
+            countdown = (2 ** self.request.retries) * 2
+            logger.info(f"Retrying intent classification for session {session_id} in {countdown}s...")
+            raise self.retry(exc=exc, countdown=countdown)
+        raise exc
+    finally:
+        db.close()
+
+

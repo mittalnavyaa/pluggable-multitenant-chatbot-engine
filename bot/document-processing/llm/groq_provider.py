@@ -28,24 +28,7 @@ class GroqProvider(BaseLLMProvider):
         self.model = settings.model
         if not settings.groq_api_key:
             raise LLMAuthenticationError("GROQ_API_KEY is not configured.")
-
-    def clean_markdown(
-        self,
-        raw_text: str,
-        system_prompt: str,
-        cleaning_prompt: str,
-    ) -> str:
-        payload = {
-            "model": self.model,
-            "temperature": self.settings.temperature,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {
-                    "role": "user",
-                    "content": f"{cleaning_prompt}\n\nRAW TEXT:\n{raw_text}",
-                },
-            ],
-        }
+    def _execute_request(self, payload: dict) -> str:
         headers = {
             "Authorization": f"Bearer {self.settings.groq_api_key}",
             "Content-Type": "application/json",
@@ -112,7 +95,40 @@ class GroqProvider(BaseLLMProvider):
         try:
             content = response.json()["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError, ValueError) as exc:
-            raise LLMProviderError("Groq response did not contain Markdown content.") from exc
+            raise LLMProviderError("Groq response did not contain expected content.") from exc
 
         return content.strip()
 
+    def clean_markdown(
+        self,
+        raw_text: str,
+        system_prompt: str,
+        cleaning_prompt: str,
+    ) -> str:
+        payload = {
+            "model": self.model,
+            "temperature": self.settings.temperature,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": f"{cleaning_prompt}\n\nRAW TEXT:\n{raw_text}",
+                },
+            ],
+        }
+        return self._execute_request(payload)
+
+    def generate(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.0,
+        max_tokens: int | None = None,
+    ) -> str:
+        payload = {
+            "model": self.model,
+            "temperature": temperature,
+            "messages": messages,
+        }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
+        return self._execute_request(payload)

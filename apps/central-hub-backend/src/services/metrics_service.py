@@ -497,4 +497,15 @@ class MetricsService:
             self.db.rollback()
             return False
 
+    def update_session_intent(self, session_id: str, intent: str, confidence: float, reasoning: list[str]):
+        """Persists the LLM-derived intent classification to the database."""
+        from src.models.analytics import ChatSessionAnalytics
+        session = self.db.query(ChatSessionAnalytics).filter_by(session_id=session_id).first()
+        if session:
+            session.intent = intent
+            self.db.commit()
+            logger.info(f"Session {session_id} intent updated to {intent} (confidence: {confidence})")
+        else:
+            logger.warning(f"Session analytics record not found for {session_id} to save intent")
+
 
