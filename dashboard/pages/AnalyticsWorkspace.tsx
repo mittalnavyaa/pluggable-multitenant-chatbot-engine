@@ -5,25 +5,30 @@ import { useAnalyticsData } from '../hooks/useAnalyticsData';
 import { fetchProducts, type ProductInfo } from '../services/productService';
 import { DashboardFilters } from '../components/analytics/DashboardFilters';
 import { KpiCard } from '../components/analytics/KpiCard';
-import { ConversationPanel } from '../components/analytics/ConversationPanel';
-import { EngagementPanel } from '../components/analytics/EngagementPanel';
-import { IntentPanel } from '../components/analytics/IntentPanel';
-import { PerformancePanel } from '../components/analytics/PerformancePanel';
 import { ConversationTable } from '../components/analytics/ConversationTable';
-import { LeadPreview } from '../components/analytics/LeadPreview';
 import { HealthPanel } from '../components/analytics/HealthPanel';
+
+// Visualization modules imports
+import { ChartContainer } from '../components/analytics/charts/ChartContainer';
+import { LineChart } from '../components/analytics/charts/LineChart';
+import { AreaChart } from '../components/analytics/charts/AreaChart';
+import { BarChart } from '../components/analytics/charts/BarChart';
+import { PieDonutChart } from '../components/analytics/charts/PieDonutChart';
+import { IntentHeatmap } from '../components/analytics/charts/IntentHeatmap';
+import { LatencyChart } from '../components/analytics/charts/LatencyChart';
+import { LeadAnalyticsChart } from '../components/analytics/charts/LeadAnalyticsChart';
+import { LiveActivityTimeline } from '../components/analytics/charts/LiveActivityTimeline';
 
 export const AnalyticsWorkspace: React.FC = () => {
   const [products, setProducts] = useState<ProductInfo[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<string>('7d');
 
-  // Load products list on mount
+  // Load products selector options on mount
   useEffect(() => {
     fetchProducts()
       .then((data) => {
         setProducts(data);
-        // By default select "All Tenants"
         setSelectedProductId(null);
       })
       .catch((err) => console.error('Failed to load products selector:', err));
@@ -43,6 +48,9 @@ export const AnalyticsWorkspace: React.FC = () => {
     platformSummary,
     recentActivity,
     bots,
+    timelineEvents,
+    liveLatencyPoints,
+    liveVolumePoints,
     refresh
   } = useAnalyticsData(selectedProductId, dateRange);
 
@@ -72,7 +80,12 @@ export const AnalyticsWorkspace: React.FC = () => {
       intent_distribution: intentDistribution,
       sales_leads: salesLeads,
       platform_summary: platformSummary,
-      recent_activity: recentActivity
+      recent_activity: recentActivity,
+      live_telemetry: {
+        latency_stream: liveLatencyPoints,
+        volume_stream: liveVolumePoints,
+        timeline_stream: timelineEvents
+      }
     };
 
     const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
@@ -86,8 +99,14 @@ export const AnalyticsWorkspace: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  // Convert platform summary to simple array shape for BarChart
+  const activePlatformsBarData = platformSummary.map((p) => ({
+    platform: p.platform_id.toUpperCase(),
+    conversations: p.total_conversations
+  }));
+
   return (
-    <div className="page-stack">
+    <div className="page-stack" style={{ padding: '4px 0 24px' }}>
       {/* Filters Toolbar */}
       <DashboardFilters
         products={products}
@@ -101,7 +120,7 @@ export const AnalyticsWorkspace: React.FC = () => {
         onExport={handleExport}
       />
 
-      {/* Error banner */}
+      {/* Error Banner */}
       {error && (
         <div className="kpi-card kpi-card--error" style={{ marginBottom: '24px', minHeight: 'auto' }}>
           <div className="kpi-card__error-msg">Ingestion Connection Issue Detected</div>
@@ -113,7 +132,6 @@ export const AnalyticsWorkspace: React.FC = () => {
 
       {/* KPI Cards Grid */}
       <section className="kpi-grid" aria-label="KPI Performance Summary">
-        {/* Total Conversations */}
         <KpiCard
           label="Total Conversations"
           value={resolutionRate?.total_conversations}
@@ -128,7 +146,6 @@ export const AnalyticsWorkspace: React.FC = () => {
           detail="Total live chatbot sessions"
         />
 
-        {/* Average Response Time */}
         <KpiCard
           label="Avg Response Time"
           value={loading ? undefined : `${avgLatency.toFixed(0)}ms`}
@@ -139,11 +156,10 @@ export const AnalyticsWorkspace: React.FC = () => {
               <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.5"/>
             </svg>
           }
-          trend={{ value: 4.5, isPositive: true }} // Positive = faster/lower latency
+          trend={{ value: 4.5, isPositive: true }}
           detail="First-token generation time"
         />
 
-        {/* Resolution Rate */}
         <KpiCard
           label="Resolution Rate"
           value={resolutionRate ? `${resolutionRate.resolution_rate_percent.toFixed(1)}%` : undefined}
@@ -158,7 +174,6 @@ export const AnalyticsWorkspace: React.FC = () => {
           detail="Solved sessions without handoff"
         />
 
-        {/* Knowledge Chunks */}
         <KpiCard
           label="Knowledge Base Chunks"
           value={knowledgeMetrics?.total_chunks}
@@ -172,7 +187,6 @@ export const AnalyticsWorkspace: React.FC = () => {
           detail="Total vectorized context segments"
         />
 
-        {/* Lead Count */}
         <KpiCard
           label="Qualified Sales Leads"
           value={salesLeads.length}
@@ -187,27 +201,70 @@ export const AnalyticsWorkspace: React.FC = () => {
         />
       </section>
 
-      {/* Modular Panels Stack Layout */}
+      {/* Visualizations Panels Grid */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        {/* Core Timeline Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
-          <ConversationPanel data={conversationVolume} loading={loading} />
-          <IntentPanel data={intentDistribution} loading={loading} />
+        
+        {/* ROW 1: Real-Time Stream (Line) + Intent Segment (Pie) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1.6fr 1fr))', gap: '24px' }}>
+          <div style={{ gridColumn: 'span 2' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: '24px' }}>
+              <ChartContainer title="Live Stream: Conversations per Minute" loading={loading} onExport={handleExport}>
+                <LineChart
+                  data={liveVolumePoints}
+                  series={[{ key: 'count', color: 'var(--color-primary)', label: 'Conversations / min' }]}
+                  xKey="time"
+                  height={180}
+                />
+              </ChartContainer>
+
+              <ChartContainer title="User Intent Ratios" loading={loading}>
+                <PieDonutChart
+                  data={intentDistribution}
+                  dataKey="count"
+                  nameKey="intent"
+                  height={180}
+                />
+              </ChartContainer>
+            </div>
+          </div>
         </div>
 
-        {/* Performance & User Engagement */}
+        {/* ROW 2: Activity Heatmap + Channels Bar */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
-          <PerformancePanel data={platformSummary} loading={loading} />
-          <EngagementPanel loading={loading} />
+          <ChartContainer title="Intent Activity Weekday Heatmap" loading={loading}>
+            <IntentHeatmap data={intentDistribution} loading={loading} />
+          </ChartContainer>
+
+          <ChartContainer title="Most Active Channels" loading={loading}>
+            <BarChart
+              data={activePlatformsBarData}
+              dataKey="conversations"
+              nameKey="platform"
+              horizontal={true}
+              color="var(--badge-success-text)"
+              height={180}
+            />
+          </ChartContainer>
         </div>
 
-        {/* Table logs & Sales Leads Preview */}
-        <div style={{ display: 'grid', gridTemplateColumns: '3fr 2fr', gap: '24px' }}>
+        {/* ROW 3: Latency Percentiles + Funnel */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: '24px' }}>
+          <ChartContainer title="LLM Latency Percentiles (P50, P95, P99)" loading={loading}>
+            <LatencyChart data={liveLatencyPoints} height={180} />
+          </ChartContainer>
+
+          <ChartContainer title="Sales Lead Funnel Progression" loading={loading}>
+            <LeadAnalyticsChart leadsCount={salesLeads.length} height={180} />
+          </ChartContainer>
+        </div>
+
+        {/* ROW 4: Table logs + Live Activity Timeline */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: '24px' }}>
           <ConversationTable bots={bots} selectedProductId={selectedProductId} loading={loading} />
-          <LeadPreview leads={salesLeads} loading={loading} />
+          <LiveActivityTimeline events={timelineEvents} loading={loading} />
         </div>
 
-        {/* System Health widget */}
+        {/* Health status */}
         <HealthPanel wsStatus={wsStatus} loading={loading} />
       </div>
     </div>

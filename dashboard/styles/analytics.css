@@ -382,3 +382,50 @@
   background: var(--badge-danger-bg);
   color: var(--badge-danger-text);
 }
+
+/* ── Live Visualization Chart Adjustments ─────── */
+
+.chart-action-btn:hover {
+  color: var(--color-primary) !important;
+  background: var(--color-bg) !important;
+}
+
+.chart-tooltip {
+  transition: left 0.15s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+/* Timeline specific iconography */
+.event-icon-circle {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.event-icon-circle--info {
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+}
+
+.event-icon-circle--success {
+  background: var(--badge-success-bg);
+  color: var(--badge-success-text);
+}
+
+.event-icon-circle--danger {
+  background: var(--badge-danger-bg);
+  color: var(--badge-danger-text);
+}
+
+@keyframes slide-in-kf {
+  0% { transform: translateY(12px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+.timeline-event-row {
+  animation: slide-in-kf 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
