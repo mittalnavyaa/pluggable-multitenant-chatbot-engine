@@ -6,7 +6,6 @@ import { DashboardLayout } from '../layouts/DashboardLayout.jsx';
 import { AdminDashboard } from '../pages/AdminDashboard.jsx';
 import { ApiKeys } from '../pages/ApiKeys.jsx';
 import { Branding } from '../pages/Branding.jsx';
-import { Dashboard } from '../pages/Dashboard.jsx';
 import { Documents } from '../pages/Documents.jsx';
 import { ProductDetails } from '../pages/ProductDetails.jsx';
 import { Products } from '../pages/Products.jsx';
@@ -14,13 +13,20 @@ import { Settings } from '../pages/Settings.jsx';
 import { Uploads } from '../pages/Uploads';
 import { KnowledgeMetrics } from '../pages/KnowledgeMetrics';
 import { AnalyticsWorkspace } from '../pages/AnalyticsWorkspace';
+import { EnvoyDashboard } from '../pages/EnvoyDashboard';
+import {
+  ConversationsPlaceholder,
+  KnowledgeBasePlaceholder,
+  SalesLeadsPlaceholder,
+  PlatformsPlaceholder
+} from '../pages/Placeholders';
 import { Login } from './pages/Login';
 import '../styles/dashboard.css';
 import '../styles/knowledge-metrics.css';
 import '../styles/analytics.css';
 
 const routeTitles: Record<string, string> = {
-  '/': 'Dashboard',
+  '/': 'Dashboard Scaffold',
   '/admin': 'Overview Dashboard',
   '/products': 'Products',
   '/branding': 'Branding',
@@ -29,7 +35,11 @@ const routeTitles: Record<string, string> = {
   '/knowledge-metrics': 'Knowledge Metrics Workspace',
   '/analytics': 'Analytics Workspace',
   '/uploads': 'Upload Manager',
-  '/settings': 'Settings'
+  '/settings': 'Settings',
+  '/conversations': 'Conversations',
+  '/knowledge-base': 'Knowledge Base',
+  '/sales-leads': 'Sales Leads',
+  '/platforms': 'Platforms'
 };
 
 function ProductsRoute() {
@@ -73,7 +83,7 @@ function DashboardApp() {
   return (
     <DashboardLayout activePage={activePage} onNavigate={undefined}>
       <Routes>
-         <Route path="/" element={<Dashboard data={data} />} />
+        <Route path="/" element={<EnvoyDashboard />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/products" element={<ProductsRoute />} />
         <Route path="/products/:id" element={<ProductDetailsRoute />} />
@@ -84,6 +94,10 @@ function DashboardApp() {
         <Route path="/analytics" element={<AnalyticsWorkspace />} />
         <Route path="/uploads" element={<Uploads />} />
         <Route path="/settings" element={<Settings settings={data.settings} />} />
+        <Route path="/conversations" element={<ConversationsPlaceholder />} />
+        <Route path="/knowledge-base" element={<KnowledgeMetrics />} />
+        <Route path="/sales-leads" element={<SalesLeadsPlaceholder />} />
+        <Route path="/platforms" element={<PlatformsPlaceholder />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </DashboardLayout>

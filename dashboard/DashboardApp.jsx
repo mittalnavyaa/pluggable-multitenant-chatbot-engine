@@ -11,6 +11,13 @@ import { Products } from './pages/Products.jsx';
 import { Settings } from './pages/Settings.jsx';
 import { Uploads } from './pages/Uploads';
 import { AnalyticsWorkspace } from './pages/AnalyticsWorkspace';
+import { EnvoyDashboard } from './pages/EnvoyDashboard';
+import {
+  ConversationsPlaceholder,
+  KnowledgeBasePlaceholder,
+  SalesLeadsPlaceholder,
+  PlatformsPlaceholder
+} from './pages/Placeholders';
 import './styles/dashboard.css';
 
 export function DashboardApp() {
@@ -25,7 +32,16 @@ export function DashboardApp() {
   }
 
   const pages = {
-    Dashboard: <Dashboard data={data} />,
+    Dashboard: <EnvoyDashboard />,
+    Analytics: <AnalyticsWorkspace />,
+    Conversations: <ConversationsPlaceholder />,
+    'Knowledge Base': <KnowledgeMetrics />,
+    Documents: <Documents documents={data.documents} />,
+    'Sales Leads': <SalesLeadsPlaceholder />,
+    Platforms: <PlatformsPlaceholder />,
+    Settings: <Settings settings={data.settings} />,
+    
+    // Kept for backward compatibility/modal detail transitions:
     'Overview Dashboard': <AdminDashboard />,
     'Bot Control Factory': <AdminDashboard />,
     'Ingestion Status Queues': <Documents documents={data.documents} />,
@@ -34,10 +50,7 @@ export function DashboardApp() {
     'Product Details': selectedProduct ? <ProductDetails product={selectedProduct} /> : <div style={{ padding: '24px', color: 'var(--color-text)' }}>No product selected.</div>,
     Branding: selectedProduct ? <Branding product={selectedProduct} /> : <div style={{ padding: '24px', color: 'var(--color-text)' }}>Please select a product.</div>,
     Uploads: <Uploads />,
-    'API Keys': <ApiKeys keyRecords={data.keyRecords} />,
-    Documents: <Documents documents={data.documents} />,
-    'Analytics Workspace': <AnalyticsWorkspace />,
-    Settings: <Settings settings={data.settings} />
+    'API Keys': <ApiKeys keyRecords={data.keyRecords} />
   };
 
   return (
