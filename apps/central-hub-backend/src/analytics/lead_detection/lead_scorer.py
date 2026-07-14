@@ -31,7 +31,7 @@ class LeadScorer:
 
         # 2. Factor signals
         pricing_score = 1.0 if "Pricing" in signals_info.get("buying_signals", []) else 0.0
-        demo_score = 1.0 if "Demo Scheduling" in signals_info.get("buying_signals", []) else 0.0
+        demo_score = 1.0 if ("Demo Scheduling" in signals_info.get("buying_signals", []) or "Enterprise Info" in signals_info.get("buying_signals", [])) else 0.0
         urgency_score = 1.0 if signals_info.get("has_urgency", False) else 0.0
 
         # 3. Check explicit contact details (high value indicator)

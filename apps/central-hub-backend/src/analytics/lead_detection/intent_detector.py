@@ -1,7 +1,7 @@
 # apps/central-hub-backend/src/analytics/lead_detection/intent_detector.py
 
 import re
-from typing import List, Dict
+from typing import List, Dict, Any
 from src.analytics.lead_detection.heuristics import INTENT_PATTERNS
 
 class IntentDetector:

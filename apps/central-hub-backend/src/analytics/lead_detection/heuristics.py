@@ -30,8 +30,8 @@ INTENT_PATTERNS = {
 
 # Commercial Buying Signal Indicators
 BUYING_SIGNALS = {
-    "Pricing": [r"\bprice\b", r"\bcost\b", r"\bpricing tier\b", r"\bquote\b", r"\bdiscount\b", r"\bbudget\b"],
-    "Enterprise Info": [r"\benterprise plan\b", r"\bcorporate\b", r"\bvolume license\b", r"\bcustom agreement\b"],
+    "Pricing": [r"\bprice\b", r"\bpricing\b", r"\bcost\b", r"\bpricing tier\b", r"\bquote\b", r"\bdiscount\b", r"\bbudget\b"],
+    "Enterprise Info": [r"\benterprise\b", r"\benterprise plan\b", r"\bcorporate\b", r"\bvolume license\b", r"\bcustom agreement\b"],
     "Demo Scheduling": [r"\bdemo\b", r"\bschedule call\b", r"\bsales representative\b", r"\bcontact sales\b"],
     "Trial & Sign-up": [r"\btrial\b", r"\bfree test\b", r"\bevaluation account\b", r"\bsign up\b"]
 }
