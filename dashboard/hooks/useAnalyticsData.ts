@@ -42,6 +42,15 @@ export interface VolumeDataPoint {
   count: number;
 }
 
+// Extended CRM Lead Interface
+export interface MutableSalesLead extends SalesLead {
+  priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
+  confidence: number;
+  lead_score: number;
+  assignee: string;
+  lastUpdated: string;
+}
+
 export interface AnalyticsWorkspaceData {
   loading: boolean;
   refreshing: boolean;
@@ -51,7 +60,7 @@ export interface AnalyticsWorkspaceData {
   conversationVolume: ConversationVolume[];
   resolutionRate: ResolutionRate | null;
   intentDistribution: IntentDistribution[];
-  salesLeads: SalesLead[];
+  salesLeads: MutableSalesLead[];
   platformSummary: PlatformSummary[];
   recentActivity: ActivityLog[];
   bots: BotInfo[];
@@ -59,6 +68,9 @@ export interface AnalyticsWorkspaceData {
   liveLatencyPoints: LatencyDataPoint[];
   liveVolumePoints: VolumeDataPoint[];
   refresh: () => void;
+  updateLeadStatus: (sessionId: string, newStatus: string) => void;
+  updateLeadPriority: (sessionId: string, newPriority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW') => void;
+  updateLeadAssignee: (sessionId: string, assignee: string) => void;
 }
 
 export function useAnalyticsData(
@@ -74,7 +86,7 @@ export function useAnalyticsData(
   const [conversationVolume, setConversationVolume] = useState<ConversationVolume[]>([]);
   const [resolutionRate, setResolutionRate] = useState<ResolutionRate | null>(null);
   const [intentDistribution, setIntentDistribution] = useState<IntentDistribution[]>([]);
-  const [salesLeads, setSalesLeads] = useState<SalesLead[]>([]);
+  const [salesLeads, setSalesLeads] = useState<MutableSalesLead[]>([]);
   const [platformSummary, setPlatformSummary] = useState<PlatformSummary[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityLog[]>([]);
   const [bots, setBots] = useState<BotInfo[]>([]);
@@ -89,6 +101,31 @@ export function useAnalyticsData(
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const simulationIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const activeProductUuidRef = useRef<string | null>(null);
+
+  // Helper to map and enrich raw SalesLead with CRM metadata
+  const enrichSalesLeads = useCallback((rawLeads: SalesLead[]): MutableSalesLead[] => {
+    return rawLeads.map((lead, idx) => {
+      // Priority based on tokens
+      let priority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' = 'LOW';
+      if (lead.total_token_usage > 100) priority = 'CRITICAL';
+      else if (lead.total_token_usage > 60) priority = 'HIGH';
+      else if (lead.total_token_usage > 30) priority = 'MEDIUM';
+
+      // Seed score/confidence deterministically
+      const seedScore = Math.max(98 - idx * 3, 62);
+      const seedConfidence = Math.max(99 - idx * 2, 70);
+
+      return {
+        ...lead,
+        priority,
+        lead_score: seedScore,
+        confidence: seedConfidence,
+        lead_status: lead.lead_status || 'NEW',
+        assignee: 'Unassigned',
+        lastUpdated: lead.first_message_at
+      };
+    });
+  }, []);
 
   // Compute startDate based on range
   const getStartDate = useCallback(() => {
@@ -159,13 +196,14 @@ export function useAnalyticsData(
         ]);
 
         const isHeaderFiltered = !!headers['X-Envoy-API-Key'];
+        let enriched = enrichSalesLeads(leadsRes.leads);
 
         if (selectedProductId && !isHeaderFiltered) {
           const tenantBotIds = bots
             .filter((b) => b.product_id === selectedProductId)
             .map((b) => b.id);
 
-          const filteredLeads = leadsRes.leads.filter(
+          const filteredLeads = enriched.filter(
             (lead) => lead.bot_id && tenantBotIds.includes(lead.bot_id)
           );
 
@@ -182,7 +220,7 @@ export function useAnalyticsData(
           setConversationVolume(volume);
           setResolutionRate(resRate);
           setIntentDistribution(intends);
-          setSalesLeads(leadsRes.leads);
+          setSalesLeads(enriched);
           setPlatformSummary(pSummary);
         }
 
@@ -196,7 +234,7 @@ export function useAnalyticsData(
         setRefreshing(false);
       }
     },
-    [selectedProductId, dateRange, bots, getStartDate]
+    [selectedProductId, dateRange, bots, getStartDate, enrichSalesLeads]
   );
 
   // Setup WebSocket connection
@@ -232,7 +270,6 @@ export function useAnalyticsData(
           reconnectTimeoutRef.current = null;
         }
 
-        // Push connection success to timeline
         setTimelineEvents((prev) => [
           {
             id: `sys-${Date.now()}`,
@@ -255,10 +292,12 @@ export function useAnalyticsData(
             if (data.conversation_volume) setConversationVolume(data.conversation_volume);
             if (data.resolution_rate) setResolutionRate(data.resolution_rate);
             if (data.intent_distribution) setIntentDistribution(data.intent_distribution);
-            if (data.sales_leads) setSalesLeads(data.sales_leads.leads || []);
+            if (data.sales_leads) {
+              const enriched = enrichSalesLeads(data.sales_leads.leads || []);
+              setSalesLeads(enriched);
+            }
             if (data.platform_summary) setPlatformSummary(data.platform_summary);
 
-            // Log event to timeline
             setTimelineEvents((prev) => [
               {
                 id: `ws-${Date.now()}`,
@@ -292,7 +331,6 @@ export function useAnalyticsData(
           }, 5000);
         }
 
-        // Log close event
         setTimelineEvents((prev) => [
           {
             id: `sys-close-${Date.now()}`,
@@ -308,9 +346,9 @@ export function useAnalyticsData(
       console.error('Failed to instantiate WebSocket:', err);
       setWsStatus('polling');
     }
-  }, [selectedProductId]);
+  }, [selectedProductId, enrichSalesLeads]);
 
-  // Seed baseline streaming values for line/latency charts on filters reset
+  // Seed baseline streaming values
   useEffect(() => {
     const now = new Date();
     const seedVolume: VolumeDataPoint[] = [];
@@ -346,7 +384,7 @@ export function useAnalyticsData(
     ]);
   }, [selectedProductId]);
 
-  // Streaming simulation effect (updates values/charts dynamically every 4.5 seconds to display animations)
+  // Streaming simulation effect
   useEffect(() => {
     if (simulationIntervalRef.current) {
       clearInterval(simulationIntervalRef.current);
@@ -360,7 +398,7 @@ export function useAnalyticsData(
       const currentCount = Math.floor(Math.random() * 12) + 2;
       setLiveVolumePoints((prev) => {
         const next = [...prev, { time: timeStr, count: currentCount }];
-        return next.slice(-12); // Maintain last 12 points
+        return next.slice(-12);
       });
 
       // 2. Latency percentiles
@@ -376,49 +414,81 @@ export function useAnalyticsData(
         return next.slice(-12);
       });
 
-      // 3. Activity timelines logs
-      const eventTypes = [
-        { type: 'conversation_started', message: 'New user conversation initiated on platform ', status: 'info', weight: 0.4 },
-        { type: 'conversation_completed', message: 'Conversation completed: session resolved on ', status: 'success', weight: 0.3 },
-        { type: 'lead_detected', message: 'Sales lead detected: High confidence intent flagged in session ', status: 'success', weight: 0.15 },
-        { type: 'error', message: 'API response failure: latency threshold exceeded on LLM gateway', status: 'error', weight: 0.05 },
-        { type: 'document_updated', message: 'Knowledge chunk vectorized: chunk_id #vector_8a2d synchronization complete', status: 'success', weight: 0.1 }
-      ];
+      // 3. Simulating a Live Lead Insertion dynamically (rare event weight)
+      if (Math.random() < 0.15) {
+        const randId = Math.random().toString(36).substring(2, 10);
+        const platforms = ['web', 'slack', 'teams'];
+        const randPlatform = platforms[Math.floor(Math.random() * platforms.length)];
+        
+        const newLead: MutableSalesLead = {
+          session_id: `sess-${randId}`,
+          platform_id: randPlatform,
+          bot_id: 'bot-1',
+          intent: 'PRICING',
+          lead_status: 'NEW',
+          first_message_at: now.toISOString(),
+          total_token_usage: 45,
+          priority: 'HIGH',
+          lead_score: Math.floor(Math.random() * 15) + 80,
+          confidence: Math.floor(Math.random() * 10) + 85,
+          assignee: 'Unassigned',
+          lastUpdated: now.toISOString()
+        };
 
-      // Select random item based on weight
-      const rand = Math.random();
-      let selected = eventTypes[0];
-      let sum = 0;
-      for (const e of eventTypes) {
-        sum += e.weight;
-        if (rand <= sum) {
-          selected = e;
-          break;
+        setSalesLeads((prev) => [newLead, ...prev]);
+
+        setTimelineEvents((prev) => [
+          {
+            id: `lead-sim-${Date.now()}`,
+            timestamp: now.toISOString(),
+            type: 'lead_detected',
+            message: `Lead qualified: pricing inquiry matching score ${newLead.lead_score}% on ${randPlatform} (Session: ${newLead.session_id})`,
+            status: 'success',
+            platform: randPlatform
+          },
+          ...prev.slice(0, 14)
+        ]);
+      } else {
+        // Normal log activity timeline items
+        const eventTypes = [
+          { type: 'conversation_started', message: 'New user conversation initiated on platform ', status: 'info', weight: 0.4 },
+          { type: 'conversation_completed', message: 'Conversation completed: session resolved on ', status: 'success', weight: 0.3 },
+          { type: 'error', message: 'API response failure: latency threshold exceeded on LLM gateway', status: 'error', weight: 0.1 },
+          { type: 'document_updated', message: 'Knowledge chunk vectorized: chunk_id #vector_8a2d synchronization complete', status: 'success', weight: 0.2 }
+        ];
+
+        const rand = Math.random();
+        let selected = eventTypes[0];
+        let sum = 0;
+        for (const e of eventTypes) {
+          sum += e.weight;
+          if (rand <= sum) {
+            selected = e;
+            break;
+          }
         }
+
+        const platforms = ['web', 'slack', 'teams'];
+        const randPlatform = platforms[Math.floor(Math.random() * platforms.length)];
+        const idStr = Math.floor(Math.random() * 9000 + 1000).toString(16);
+
+        let msg = selected.message;
+        if (selected.type === 'conversation_started' || selected.type === 'conversation_completed') {
+          msg = `${selected.message}${randPlatform} (Session: sess_${idStr})`;
+        }
+
+        setTimelineEvents((prev) => [
+          {
+            id: `sim-${Date.now()}`,
+            timestamp: now.toISOString(),
+            type: selected.type as any,
+            message: msg,
+            status: selected.status as any,
+            platform: randPlatform
+          },
+          ...prev.slice(0, 14)
+        ]);
       }
-
-      const platforms = ['web', 'slack', 'teams'];
-      const randPlatform = platforms[Math.floor(Math.random() * platforms.length)];
-      const idStr = Math.floor(Math.random() * 9000 + 1000).toString(16);
-
-      let msg = selected.message;
-      if (selected.type === 'conversation_started' || selected.type === 'conversation_completed') {
-        msg = `${selected.message}${randPlatform} (Session: sess_${idStr})`;
-      } else if (selected.type === 'lead_detected') {
-        msg = `${selected.message}sess_${idStr}`;
-      }
-
-      setTimelineEvents((prev) => [
-        {
-          id: `sim-${Date.now()}`,
-          timestamp: now.toISOString(),
-          type: selected.type as any,
-          message: msg,
-          status: selected.status as any,
-          platform: randPlatform
-        },
-        ...prev.slice(0, 14)
-      ]);
     }, 4500);
 
     return () => {
@@ -426,6 +496,75 @@ export function useAnalyticsData(
         clearInterval(simulationIntervalRef.current);
       }
     };
+  }, []);
+
+  // Lead status update mutations
+  const updateLeadStatus = useCallback((sessionId: string, newStatus: string) => {
+    const now = new Date().toISOString();
+    setSalesLeads((prev) =>
+      prev.map((lead) =>
+        lead.session_id === sessionId
+          ? { ...lead, lead_status: newStatus, lastUpdated: now }
+          : lead
+      )
+    );
+
+    setTimelineEvents((prev) => [
+      {
+        id: `c-status-${Date.now()}`,
+        timestamp: now,
+        type: 'platform_event',
+        message: `Lead ${sessionId.slice(-6).toUpperCase()} status updated to ${newStatus}`,
+        status: 'info'
+      },
+      ...prev.slice(0, 14)
+    ]);
+  }, []);
+
+  // Lead priority update mutations
+  const updateLeadPriority = useCallback((sessionId: string, newPriority: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW') => {
+    const now = new Date().toISOString();
+    setSalesLeads((prev) =>
+      prev.map((lead) =>
+        lead.session_id === sessionId
+          ? { ...lead, priority: newPriority, lastUpdated: now }
+          : lead
+      )
+    );
+
+    setTimelineEvents((prev) => [
+      {
+        id: `c-priority-${Date.now()}`,
+        timestamp: now,
+        type: 'platform_event',
+        message: `Lead ${sessionId.slice(-6).toUpperCase()} priority escalated to ${newPriority}`,
+        status: 'warning'
+      },
+      ...prev.slice(0, 14)
+    ]);
+  }, []);
+
+  // Lead assignee updates
+  const updateLeadAssignee = useCallback((sessionId: string, assignee: string) => {
+    const now = new Date().toISOString();
+    setSalesLeads((prev) =>
+      prev.map((lead) =>
+        lead.session_id === sessionId
+          ? { ...lead, assignee, lastUpdated: now }
+          : lead
+      )
+    );
+
+    setTimelineEvents((prev) => [
+      {
+        id: `c-assign-${Date.now()}`,
+        timestamp: now,
+        type: 'platform_event',
+        message: `Lead ${sessionId.slice(-6).toUpperCase()} assigned to manager ${assignee}`,
+        status: 'success'
+      },
+      ...prev.slice(0, 14)
+    ]);
   }, []);
 
   // Handle active data fetching lifecycle
@@ -473,6 +612,9 @@ export function useAnalyticsData(
     timelineEvents,
     liveLatencyPoints,
     liveVolumePoints,
-    refresh
+    refresh,
+    updateLeadStatus,
+    updateLeadPriority,
+    updateLeadAssignee
   };
 }

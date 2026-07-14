@@ -429,3 +429,22 @@
   animation: slide-in-kf 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* ── CRM Leads Dashboard Styles ────────────────── */
+
+.lead-details-overlay {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lead-row-tr:hover {
+  background: rgba(79, 70, 229, 0.02);
+}
+
+.lead-row-tr--selected {
+  background: rgba(79, 70, 229, 0.05) !important;
+}
+
+.leads-grid-panel {
+  margin-top: 16px;
+}
+
+
