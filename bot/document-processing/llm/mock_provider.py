@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Generator
 from config.settings import Settings
 from llm.base_provider import BaseLLMProvider
+
 
 class MockLLMProvider(BaseLLMProvider):
     """Mock LLM provider that returns raw text wrapped in clean Markdown headers."""
@@ -47,3 +49,15 @@ class MockLLMProvider(BaseLLMProvider):
   ]
 }"""
         return "Mock text response."
+
+    def generate_stream(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.0,
+        max_tokens: int | None = None,
+    ) -> Generator[str, None, None]:
+        response_text = self.generate(messages, temperature, max_tokens)
+        words = response_text.split(" ")
+        for i, word in enumerate(words):
+            yield word + (" " if i < len(words) - 1 else "")
+

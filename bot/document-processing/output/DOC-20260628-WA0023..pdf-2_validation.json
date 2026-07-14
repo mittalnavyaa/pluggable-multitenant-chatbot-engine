@@ -1,0 +1,34 @@
+{
+  "success": false,
+  "status": "FAILED",
+  "overall_score": 0.35,
+  "detected_issues": [
+    "High duplicate ratio: 0.61 (Max: 0.2)",
+    "Excessive blank lines ratio: 0.64 (Max: 0.15)",
+    "Document lacks appropriate headings structure."
+  ],
+  "warnings": [
+    "Document contains high redundancy."
+  ],
+  "metrics": {
+    "duplicate_ratio": 0.6071428571428571,
+    "whitespace_ratio": 0.6428571428571429,
+    "noise_ratio": 0.0,
+    "overall_score": 0.35
+  },
+  "statistics": {
+    "character_count": 258,
+    "total_lines": 28,
+    "heading_count": 0,
+    "empty_headings_count": 0,
+    "paragraph_count": 10,
+    "list_item_count": 0,
+    "page_numbers_count": 0,
+    "copyright_banners_count": 0,
+    "ocr_artifacts_count": 0,
+    "duplicate_consecutive_paragraphs": 0
+  },
+  "failure_reasons": [
+    "Overall quality score (0.35) is below minimum required (0.70)."
+  ]
+}

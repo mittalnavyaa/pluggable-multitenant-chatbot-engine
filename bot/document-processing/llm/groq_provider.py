@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 import time
 import requests
+import json
+from typing import Generator
 
 from config.settings import Settings
 from llm.base_provider import (
@@ -28,6 +30,7 @@ class GroqProvider(BaseLLMProvider):
         self.model = settings.model
         if not settings.groq_api_key:
             raise LLMAuthenticationError("GROQ_API_KEY is not configured.")
+
     def _execute_request(self, payload: dict) -> str:
         headers = {
             "Authorization": f"Bearer {self.settings.groq_api_key}",
@@ -132,3 +135,57 @@ class GroqProvider(BaseLLMProvider):
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
         return self._execute_request(payload)
+
+    def generate_stream(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.0,
+        max_tokens: int | None = None,
+    ) -> Generator[str, None, None]:
+        headers = {
+            "Authorization": f"Bearer {self.settings.groq_api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "temperature": temperature,
+            "messages": messages,
+            "stream": True,
+        }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
+
+        try:
+            response = requests.post(
+                self.api_url,
+                headers=headers,
+                json=payload,
+                timeout=self.settings.timeout,
+                stream=True,
+            )
+        except Exception as exc:
+            raise LLMProviderError(f"Groq stream request failed: {exc}") from exc
+
+        if response.status_code >= 400:
+            raise LLMProviderError(
+                f"Groq stream request failed with status {response.status_code}: {response.text}"
+            )
+
+        for line in response.iter_lines():
+            if not line:
+                continue
+            decoded_line = line.decode("utf-8").strip()
+            if decoded_line.startswith("data: "):
+                data_content = decoded_line[6:]
+                if data_content == "[DONE]":
+                    break
+                try:
+                    chunk_json = json.loads(data_content)
+                    choices = chunk_json.get("choices", [])
+                    if choices:
+                        delta = choices[0].get("delta", {})
+                        content = delta.get("content", "")
+                        if content:
+                            yield content
+                except Exception:
+                    pass

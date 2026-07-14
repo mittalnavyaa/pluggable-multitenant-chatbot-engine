@@ -227,14 +227,26 @@ def get_job_status(job_id: str, db: Session):
         error_message = "Ingestion process failed. Check worker logs."
         try:
             import os
-            output_dir = "bot/document-processing/output"
+            # Resolve to absolute project root path to handle uvicorn/celery CWD differences
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+            output_dir = os.path.join(project_root, "bot", "document-processing", "output")
+            
             val_report_path = os.path.join(output_dir, f"{os.path.splitext(doc.filename)[0]}_validation.json")
+            error_report_path = os.path.join(output_dir, f"{os.path.splitext(doc.filename)[0]}_error.json")
+            
             if os.path.exists(val_report_path):
                 import json
                 with open(val_report_path, "r", encoding="utf-8") as vf:
                     val_data = json.load(vf)
                 if not val_data.get("success", True) and val_data.get("failure_reasons"):
                     error_message = f"Validation failed: {', '.join(val_data['failure_reasons'])}"
+            elif os.path.exists(error_report_path):
+                import json
+                with open(error_report_path, "r", encoding="utf-8") as ef:
+                    err_data = json.load(ef)
+                if err_data.get("error"):
+                    error_message = err_data["error"]
         except Exception:
             pass
 

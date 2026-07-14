@@ -580,34 +580,6 @@ chat_router = APIRouter(
 )
 
 
-def generate_response_text(prompt: str, context: str) -> str:
-    import re
-    q = prompt.lower()
-    words = set(re.findall(r'\b\w+\b', q))
-    
-    # If RAG context was retrieved, always use it (this is the primary response path)
-    if context and context.strip():
-        return f"Based on the retrieved knowledge documents: {context[:500]}... If you need more details, please let me know."
-    
-    # Fallback: keyword-based responses only when no RAG context is available
-    # Use word-boundary matching (set intersection) to avoid substring false positives
-    # e.g., "hi" should not match "internship"
-    if words & {"hello", "hi", "hey"}:
-        return "Hello! I am the Envoy AI assistant. I can help you with analytics, reports, and platform configuration. What would you like to know?"
-    
-    if words & {"branding", "color", "theme"}:
-        return "You can customize the widget's colors, fonts, and layout through the Branding configuration panel in the admin dashboard. Changes are applied dynamically at runtime."
-    
-    if words & {"sync", "knowledge", "document"}:
-        return "To synchronize the knowledge base, navigate to the Knowledge Metrics section and click 'Synchronize Brain'. The system will re-index all pending documents."
-    
-    if words & {"sdk", "install", "integrate"}:
-        return "To integrate the Backend SDK, install @envoy/chatbot-backend-sdk, call createChatbotSDK() with your credentials, and register the middleware on your chat route."
-    
-    if words & {"stream", "sse"}:
-        return "Streaming responses use Server-Sent Events (SSE). The widget connects to GET /api/v1/chat/stream and reads token chunks as they arrive."
-        
-    return f'Thank you for your question about "{prompt}". The Envoy AI platform provides intelligent, context-aware responses from your indexed knowledge base. How can I assist you further?'
 
 
 from fastapi.responses import StreamingResponse
@@ -782,37 +754,9 @@ async def chat_stream(
             validated_context=validated_ctx
         )
 
-        # 7. Generate Bot Response
-        response_text = generate_response_text(payload.prompt, rag_response.formatted_context)
+        # 7. Prepare event payload metadata
         message_id = f"msg_{int(time.time() * 1000)}"
         conversation_id = compat_payload.conversation_id
-        
-        # 8. Log Query Metrics (from RAG Engine)
-        try:
-            metrics_svc.log_query_metrics(
-                platform_id=rag_response.platform_id,
-                query=payload.prompt,
-                conversation_id=conversation_id,
-                retrieval_latency_ms=rag_response.retrieval_latency_ms,
-                embedding_latency_ms=rag_response.embedding_latency_ms,
-                llm_latency_ms=rag_response.llm_latency_ms,
-                top_k=rag_response.top_k,
-                similarity_scores=rag_response.similarity_scores,
-                best_similarity_score=rag_response.best_similarity_score,
-                retrieved_chunk_ids=rag_response.retrieved_chunk_ids,
-                retrieved_document_ids=rag_response.retrieved_document_ids,
-                token_usage=rag_response.token_usage,
-                fallback_triggered=rag_response.fallback_triggered
-            )
-        except Exception as ex:
-            logger.error(f"Failed to record query retrieval metrics: {ex}")
-
-        # Log Gateway Access Metrics
-        gateway_latency = (time.time() - start_time) * 1000.0
-        try:
-            metrics_svc.log_gateway_metrics(platform_id, "ACCEPTED", None, gateway_latency)
-        except Exception as ex:
-            logger.error(f"Failed to record gateway metrics: {ex}")
 
         # Assemble stable event payload
         event_payload = {
@@ -827,14 +771,14 @@ async def chat_stream(
             "conversation_id": conversation_id,
             "payload": {
                 "query": payload.prompt,
-                "assistant_response": response_text,
+                "assistant_response": "",
                 "response_latency_ms": 0.0,
                 "token_usage": rag_response.token_usage
             },
             "metadata": {
                 "retrieval_latency_ms": rag_response.retrieval_latency_ms,
                 "embedding_latency_ms": rag_response.embedding_latency_ms,
-                "llm_latency_ms": rag_response.llm_latency_ms,
+                "llm_latency_ms": 0.0,
                 "top_k": rag_response.top_k,
                 "best_similarity_score": rag_response.best_similarity_score,
                 "retrieved_chunk_ids": rag_response.retrieved_chunk_ids,
@@ -843,51 +787,23 @@ async def chat_stream(
             }
         }
 
-        # 9. Handle Streaming (SSE) vs JSON Response
+        # 8. Delegate generation to ChatService in the services layer
+        from src.services.chat_service import ChatService
+        
         if payload.stream:
-            if concurrency_acquired:
-                limiter.release_concurrency(rate_limit_key, request_id)
-                concurrency_acquired = False
-
-            async def event_generator():
-                try:
-                    for char in response_text:
-                        chunk = json.dumps({"event": "text", "text": char})
-                        yield f"data: {chunk}\n\n"
-                        await asyncio.sleep(0.01)
-                        
-                    done_chunk = json.dumps({"event": "done", "message_id": message_id})
-                    yield f"data: {done_chunk}\n\n"
-                except GeneratorExit:
-                    logger.info(f"Client disconnected early from SSE stream for event {event_payload['event_id']}")
-                finally:
-                    duration_ms = (time.time() - start_time) * 1000.0
-                    event_payload["payload"]["response_latency_ms"] = duration_ms
-                    try:
-                        from src.celery_app import process_runtime_event
-                        pub_start = time.time()
-                        process_runtime_event.delay(event_payload)
-                        pub_latency = (time.time() - pub_start) * 1000.0
-                        
-                        local_db = SessionLocal()
-                        try:
-                            local_svc = MetricsService(local_db)
-                            local_svc.log_streaming_event_publish(
-                                event_id=event_payload["event_id"],
-                                event_type=event_payload["event_type"],
-                                platform_id=event_payload["platform_id"],
-                                bot_id=event_payload["bot_id"],
-                                conversation_id=event_payload["conversation_id"],
-                                publish_latency_ms=pub_latency,
-                                status="PUBLISHED"
-                            )
-                        finally:
-                            local_db.close()
-                    except Exception as e:
-                        logger.error(f"Failed to publish runtime SSE streaming event clone: {e}")
-
             return StreamingResponse(
-                event_generator(),
+                ChatService.generate_chat_stream(
+                    prompt=payload.prompt,
+                    rag_response=rag_response,
+                    conversation_id=conversation_id,
+                    bot_id=bot_id,
+                    platform_id=platform_id,
+                    product_db_id=product_db_id,
+                    event_payload=event_payload,
+                    message_id=message_id,
+                    start_time=start_time,
+                    metrics_svc=metrics_svc
+                ),
                 media_type="text/event-stream",
                 headers={
                     "Cache-Control": "no-cache",
@@ -896,41 +812,43 @@ async def chat_stream(
                 }
             )
         else:
+            try:
+                response_json = ChatService.generate_chat_json(
+                    prompt=payload.prompt,
+                    rag_response=rag_response,
+                    conversation_id=conversation_id,
+                    bot_id=bot_id,
+                    platform_id=platform_id,
+                    product_db_id=product_db_id,
+                    event_payload=event_payload,
+                    message_id=message_id,
+                    start_time=start_time,
+                    metrics_svc=metrics_svc
+                )
+            except Exception as llm_err:
+                if concurrency_acquired:
+                    limiter.release_concurrency(rate_limit_key, request_id)
+                    concurrency_acquired = False
+                return build_error_response(
+                    code="SERVICE_UNAVAILABLE",
+                    message="LLM response generation failed.",
+                    status_code=503,
+                    correlation_id=correlation_id,
+                    retryable=True
+                )
+                
             if concurrency_acquired:
                 limiter.release_concurrency(rate_limit_key, request_id)
                 concurrency_acquired = False
                 
-            duration_ms = (time.time() - start_time) * 1000.0
-            event_payload["payload"]["response_latency_ms"] = duration_ms
-            
+            # Log Gateway Access Metrics
+            gateway_latency = (time.time() - start_time) * 1000.0
             try:
-                from src.celery_app import process_runtime_event
-                pub_start = time.time()
-                process_runtime_event.delay(event_payload)
-                pub_latency = (time.time() - pub_start) * 1000.0
+                metrics_svc.log_gateway_metrics(platform_id, "ACCEPTED", None, gateway_latency)
+            except Exception as ex:
+                logger.error(f"Failed to record gateway metrics: {ex}")
                 
-                metrics_svc.log_streaming_event_publish(
-                    event_id=event_payload["event_id"],
-                    event_type=event_payload["event_type"],
-                    platform_id=event_payload["platform_id"],
-                    bot_id=event_payload["bot_id"],
-                    conversation_id=event_payload["conversation_id"],
-                    publish_latency_ms=pub_latency,
-                    status="PUBLISHED"
-                )
-            except Exception as e:
-                logger.error(f"Failed to publish runtime event clone: {e}")
-                
-            return {
-                "success": True,
-                "message": {
-                    "id": message_id,
-                    "conversation_id": conversation_id,
-                    "sender": "bot",
-                    "text": response_text,
-                    "timestamp": datetime.utcnow().isoformat() + "Z"
-                }
-            }
+            return response_json
 
     except Exception as e:
         logger.exception(f"Unhandled chat_stream exception: {e}")

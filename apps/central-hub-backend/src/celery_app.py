@@ -1,5 +1,24 @@
 import os
 import sys
+from dotenv import load_dotenv
+
+# Load environment variables from central-hub-backend .env
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(_current_dir, "..", ".env"))
+
+# Monkeypatch PyTorch 2.1.x pytree compatibility for newer transformers library
+try:
+    import torch.utils._pytree
+    if not hasattr(torch.utils._pytree, "register_pytree_node") and hasattr(torch.utils._pytree, "_register_pytree_node"):
+        _orig_register = torch.utils._pytree._register_pytree_node
+        def register_pytree_node(type_, flatten_fn, unflatten_fn, *args, **kwargs):
+            # Remove serialized_type_name or other extra keyword args not supported by older PyTorch
+            kwargs.pop("serialized_type_name", None)
+            return _orig_register(type_, flatten_fn, unflatten_fn, *args, **kwargs)
+        torch.utils._pytree.register_pytree_node = register_pytree_node
+except ImportError:
+    pass
+
 from celery import Celery
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
@@ -99,6 +118,14 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
         if not doc:
             logger.error(f"Failed: Document registry record not found for id: {document_id}")
             return {"status": "FAILED", "error": "Document not found"}
+
+        if doc.storage_path != storage_path:
+            logger.warning(
+                f"Stale task execution skipped: Current DB storage path '{doc.storage_path}' "
+                f"differs from task parameter '{storage_path}'."
+            )
+            return {"status": "SKIPPED", "reason": "stale_task"}
+
 
         bot = db.query(Bot).filter(Bot.id == doc.bot_id).first()
         if not bot:
@@ -241,6 +268,15 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
         if is_non_retryable:
             logger.error(f"Non-retryable processing failure for job {document_id}: {exc}")
             
+            # Write error report to disk next to outputs
+            try:
+                import json
+                error_report_path = os.path.join(output_dir, f"{os.path.splitext(doc.filename)[0]}_error.json")
+                with open(error_report_path, "w", encoding="utf-8") as ef:
+                    json.dump({"error": str(exc)}, ef, indent=2)
+            except Exception as e:
+                logger.error(f"Failed to write error report: {e}")
+                
             # Determine correct terminal state: VALIDATION_FAILED vs general FAILED
             target_status = "FAILED"
             if "validation failed" in str(exc).lower():
@@ -269,6 +305,16 @@ def process_document(self, document_id: str, bot_id: str, storage_path: str):
             raise self.retry(exc=exc, countdown=countdown)
         else:
             logger.error(f"Failed: Maximum retries exhausted for job {document_id}")
+            
+            # Write error report to disk next to outputs
+            try:
+                import json
+                error_report_path = os.path.join(output_dir, f"{os.path.splitext(doc.filename)[0]}_error.json")
+                with open(error_report_path, "w", encoding="utf-8") as ef:
+                    json.dump({"error": str(exc)}, ef, indent=2)
+            except Exception as e:
+                logger.error(f"Failed to write error report: {e}")
+
             _update_status(document_id, "FAILED", db)
             metrics_service = MetricsService(db)
             metrics_service.mark_failed(document_id)
@@ -395,6 +441,19 @@ def process_chunking(self, payload: dict):
             raise self.retry(exc=exc, countdown=countdown)
         else:
             logger.error(f"Failed: Maximum retries exhausted for chunking job {document_id}")
+            
+            # Write error report to disk next to outputs
+            try:
+                import json
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir)))
+                output_dir = os.path.join(project_root, "bot", "document-processing", "output")
+                error_report_path = os.path.join(output_dir, f"{os.path.splitext(doc.filename)[0]}_error.json")
+                with open(error_report_path, "w", encoding="utf-8") as ef:
+                    json.dump({"error": str(exc)}, ef, indent=2)
+            except Exception as e:
+                logger.error(f"Failed to write error report: {e}")
+
             _update_status(document_id, "FAILED", db)
             metrics_service = MetricsService(db)
             metrics_service.mark_failed(document_id)
