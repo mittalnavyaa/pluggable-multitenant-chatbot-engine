@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, WebSocket, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from pydantic import BaseModel
@@ -370,4 +370,72 @@ def trigger_cleanup(
     metrics_svc = MetricsService(db)
     success = metrics_svc.cleanup_expired_telemetry(retention_days=retention_days)
     return {"success": success}
+
+
+@router.websocket("/ws")
+async def websocket_analytics(
+    websocket: WebSocket,
+    token: Optional[str] = Query(None)
+):
+    import hashlib
+    import asyncio
+    from src.database.database import SessionLocal
+    from src.models.internal_product import InternalProduct
+    from src.services.websocket_service import connection_manager
+    from fastapi import WebSocketDisconnect
+
+    if not token:
+        await websocket.close(code=4003)
+        return
+
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    def verify_token():
+        db = SessionLocal()
+        try:
+            return db.query(InternalProduct.id).filter(
+                InternalProduct.internal_service_token_hash == token_hash,
+                InternalProduct.status == "ACTIVE"
+            ).first()
+        finally:
+            db.close()
+
+    product_row = await asyncio.to_thread(verify_token)
+    if not product_row:
+        await websocket.close(code=4003)
+        return
+
+    tenant_id_str = str(product_row.id)
+
+    await connection_manager.connect(tenant_id_str, websocket)
+    await connection_manager.send_baseline_snapshot(tenant_id_str, websocket)
+
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text("pong")
+    except WebSocketDisconnect:
+        pass
+    finally:
+        connection_manager.disconnect(tenant_id_str, websocket)
+
+
+@router.get("/ws-status")
+def get_ws_status():
+    from src.services.websocket_service import connection_manager
+    metrics = connection_manager.metrics
+    avg_latency = 0.0
+    if metrics["broadcast_count"] > 0:
+        avg_latency = metrics["broadcast_latency_sum_ms"] / metrics["broadcast_count"]
+
+    return {
+        "active_connections": metrics["active_connections"],
+        "messages_sent": metrics["messages_sent"],
+        "failed_broadcasts": metrics["failed_broadcasts"],
+        "reconnect_count": metrics["reconnect_count"],
+        "disconnect_count": metrics["disconnect_count"],
+        "average_broadcast_latency_ms": round(avg_latency, 2)
+    }
+
 

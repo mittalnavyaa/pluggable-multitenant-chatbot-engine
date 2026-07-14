@@ -368,6 +368,25 @@ class MetricsService:
             self.db.add(bot_message)
 
             self.db.commit()
+
+            if tenant_uuid:
+                try:
+                    import redis
+                    import os
+                    REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+                    REDIS_PORT = os.getenv("REDIS_PORT", "6379")
+                    r = redis.Redis(
+                        host=REDIS_HOST,
+                        port=int(REDIS_PORT),
+                        db=0,
+                        socket_timeout=0.1,
+                        socket_connect_timeout=0.1,
+                        retry=None
+                    )
+                    r.publish("analytics_updates", str(tenant_uuid))
+                except Exception as redis_err:
+                    logger.error(f"Failed to publish analytics update to Redis: {redis_err}")
+
             return session
         except Exception as e:
             logger.error(f"Failed to log chat telemetry for event {event_id}: {e}")
@@ -417,6 +436,31 @@ class MetricsService:
                 {"start_time": start_time}
             )
             self.db.commit()
+
+            try:
+                tenant_rows = self.db.execute(
+                    text("SELECT DISTINCT tenant_id FROM chat_session_analytics WHERE created_at >= :start_time"),
+                    {"start_time": start_time}
+                ).all()
+                if tenant_rows:
+                    import redis
+                    import os
+                    REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+                    REDIS_PORT = os.getenv("REDIS_PORT", "6379")
+                    r = redis.Redis(
+                        host=REDIS_HOST,
+                        port=int(REDIS_PORT),
+                        db=0,
+                        socket_timeout=0.1,
+                        socket_connect_timeout=0.1,
+                        retry=None
+                    )
+                    for row in tenant_rows:
+                        if row.tenant_id:
+                            r.publish("analytics_updates", str(row.tenant_id))
+            except Exception as redis_err:
+                logger.error(f"Failed to publish rollup analytics updates to Redis: {redis_err}")
+
             return True
         except Exception as e:
             logger.error(f"Failed to refresh hourly rollups: {e}")

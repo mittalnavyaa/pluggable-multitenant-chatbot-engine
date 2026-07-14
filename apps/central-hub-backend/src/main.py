@@ -93,6 +93,20 @@ def startup():
     finally:
         db.close()
 
+    import asyncio
+    from src.services.websocket_service import redis_pubsub_listener
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            loop.create_task(redis_pubsub_listener())
+        else:
+            # If the loop isn't running yet (e.g. during certain test configurations),
+            # we schedule it to start when the loop starts
+            asyncio.ensure_future(redis_pubsub_listener())
+    except Exception as e:
+        import logging
+        logging.getLogger("uvicorn").error(f"Error launching Redis PubSub listener on startup: {e}")
+
 @app.get("/")
 def root():
 
