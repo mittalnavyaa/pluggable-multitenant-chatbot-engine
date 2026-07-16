@@ -28,6 +28,18 @@ class TelemetryOrchestrator:
         query_text = payload_obj.payload.get("query", "")
         assistant_resp = payload_obj.payload.get("assistant_response", "")
 
+        # Resolve correct tenant UUID from platform_id
+        from src.models.internal_product import InternalProduct
+        product = db.query(InternalProduct).filter(InternalProduct.product_id == payload_obj.platform_id).first()
+        tenant_uuid = product.id if product else None
+        if not tenant_uuid:
+            logger.warning(
+                f"Failed to resolve tenant UUID for platform_id: {payload_obj.platform_id!r}. "
+                f"event_id: {payload_obj.event_id!r}, bot_id: {payload_obj.bot_id!r}, "
+                f"session_id: {payload_obj.conversation_id!r}. "
+                f"Persisting None for tenant_id."
+            )
+
         # 2. Concurrently run Intent tagging and Sales Lead heuristics
         # Fetch previous message history from database to ensure conversation context isolation
         previous_messages = db.query(ChatMessageAnalytics).filter_by(
@@ -41,7 +53,7 @@ class TelemetryOrchestrator:
         conv_context = ConversationContext(
             conversation_id=payload_obj.conversation_id,
             platform_id=payload_obj.platform_id,
-            tenant_id=payload_obj.platform_id,
+            tenant_id=str(tenant_uuid) if tenant_uuid else "",
             messages=messages
         )
 
@@ -61,7 +73,7 @@ class TelemetryOrchestrator:
         persist_payload = {
             "event_id": payload_obj.event_id,
             "platform_id": payload_obj.platform_id,
-            "tenant_id": payload_obj.platform_id,
+            "tenant_id": str(tenant_uuid) if tenant_uuid else None,
             "bot_id": payload_obj.bot_id,
             "session_id": payload_obj.conversation_id,
             "timestamp": payload_obj.timestamp,
@@ -79,11 +91,6 @@ class TelemetryOrchestrator:
         tracker.log_step("Database Persistence Completed")
 
         # 4. Publish completion notification to notify dashboard WebSockets
-        # Platform ID matches internal tenant Product ID
-        from src.models.internal_product import InternalProduct
-        product = db.query(InternalProduct).filter(InternalProduct.product_id == payload_obj.platform_id).first()
-        tenant_uuid = product.id if product else None
-        
         if tenant_uuid:
             await asyncio.to_thread(TelemetryPublisher.publish_completion, str(tenant_uuid))
             tracker.log_step("WebSocket Notification Published")
@@ -95,5 +102,5 @@ class TelemetryOrchestrator:
             payload_obj=payload_obj,
             intent_info=intent_info,
             lead_result=lead_result,
-            processing_time_ms=summary["total_processing_time_ms"]
+            processing_time_ms=int(summary["total_processing_time_ms"])
         )

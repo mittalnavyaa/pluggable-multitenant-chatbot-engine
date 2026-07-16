@@ -210,18 +210,20 @@ def test_chat_stream_sse(
     assert has_done_chunk
 
 
-@patch("src.celery_app.SessionLocal")
-@patch("redis.Redis.from_url")
-def test_worker_process_runtime_event(mock_redis_class, mock_session_local):
-    # Set up mock Redis client
-    mock_redis = mock_redis_class.return_value
-    mock_redis.set.return_value = True  # SETNX successful (new event)
-    mock_redis.get.return_value = None  # No previous event time
+@patch("src.telemetry.pipeline.telemetry_pipeline.SessionLocal")
+@patch("redis.Redis.publish")
+@patch("redis.Redis.get")
+@patch("redis.Redis.set")
+def test_worker_process_runtime_event(mock_redis_set, mock_redis_get, mock_redis_publish, mock_session_local):
+    mock_redis_set.return_value = True  # SETNX successful (new event)
+    mock_redis_get.return_value = None  # No previous event time
     
     # Set up mock PostgreSQL session
     mock_product = MagicMock()
     mock_product.product_id = "tensor"
     mock_product.status = "ACTIVE"
+    mock_product.id = uuid.uuid4()
+    mock_product.product_name = "Tensor Product"
     
     mock_metrics = MagicMock()
     
@@ -267,7 +269,208 @@ def test_worker_process_runtime_event(mock_redis_class, mock_session_local):
     assert res.result["status"] == "SUCCESS"
     
     # Verify idempotency key check was executed
-    mock_redis.set.assert_any_call(f"processed_event:{event_payload['event_id']}", "1", ex=86400, nx=True)
+    mock_redis_set.assert_any_call(f"processed_event:{event_payload['event_id']}", "1", ex=86400, nx=True)
     
     # Verify PostgreSQL commit was done to save worker latencies
     assert mock_session.commit.called
+
+
+@patch("src.routers.query.limiter")
+@patch("src.routers.query.SessionLocal")
+@patch("src.middleware.auth.SessionLocal")
+@patch("src.routers.query.ContextIsolationRoutingEngine")
+@patch("src.celery_app.process_runtime_event.delay")
+def test_chat_stream_concurrency_released_on_completion(
+    mock_celery,
+    mock_engine_class,
+    mock_auth_session_local,
+    mock_query_session_local,
+    mock_limiter
+):
+    prod_uuid = uuid.uuid4()
+    mock_product = MagicMock()
+    mock_product.product_id = "tensor"
+    mock_product.id = prod_uuid
+    mock_product.status = "ACTIVE"
+    mock_product.product_name = "Tensor Product"
+    
+    mock_bot = MagicMock()
+    mock_bot.product_id = prod_uuid
+    mock_bot.status = "ACTIVE"
+    
+    mock_session = MagicMock()
+    mock_session.query.return_value.filter.return_value.first.side_effect = [
+        mock_product,
+        mock_bot,
+        None,
+    ]
+    mock_auth_session_local.return_value = mock_session
+    mock_query_session_local.return_value = mock_session
+    
+    mock_limiter.check_rate_limit.return_value = True
+    mock_limiter.acquire_concurrency.return_value = True
+    
+    mock_engine = mock_engine_class.return_value
+    from src.rag.retrieval_models import RuntimeResponse, RetrievalStatistics
+    mock_response = RuntimeResponse(
+        platform_id="tensor",
+        retrieved_chunks=[],
+        formatted_context="Sample policy context",
+        statistics=RetrievalStatistics(
+            query_latency_ms=2.0,
+            chunks_count=0,
+            score_distribution=[]
+        )
+    )
+    mock_engine.retrieve = AsyncMock(return_value=mock_response)
+
+    bot_uuid = str(uuid.uuid4())
+    payload = {
+        "bot_id": bot_uuid,
+        "prompt": "hello",
+        "stream": True,
+        "conversation_id": "conv_sse_completion_test"
+    }
+
+    resp = client.post(
+        "/api/v1/chat/stream",
+        headers={"X-Envoy-API-Key": "some_valid_token"},
+        json=payload
+    )
+
+    assert resp.status_code == 200
+    
+    # Consume the entire stream
+    for _ in resp.iter_lines():
+        pass
+        
+    # Verify concurrency was released
+    assert mock_limiter.release_concurrency.called
+
+
+@patch("src.routers.query.limiter")
+@patch("src.routers.query.SessionLocal")
+@patch("src.middleware.auth.SessionLocal")
+@patch("src.routers.query.ContextIsolationRoutingEngine")
+@patch("src.celery_app.process_runtime_event.delay")
+def test_chat_stream_concurrency_released_on_disconnect(
+    mock_celery,
+    mock_engine_class,
+    mock_auth_session_local,
+    mock_query_session_local,
+    mock_limiter
+):
+    prod_uuid = uuid.uuid4()
+    mock_product = MagicMock()
+    mock_product.product_id = "tensor"
+    mock_product.id = prod_uuid
+    mock_product.status = "ACTIVE"
+    mock_product.product_name = "Tensor Product"
+    
+    mock_bot = MagicMock()
+    mock_bot.product_id = prod_uuid
+    mock_bot.status = "ACTIVE"
+    
+    mock_session = MagicMock()
+    mock_session.query.return_value.filter.return_value.first.side_effect = [
+        mock_product,
+        mock_bot,
+        None,
+    ]
+    mock_auth_session_local.return_value = mock_session
+    mock_query_session_local.return_value = mock_session
+    
+    mock_limiter.check_rate_limit.return_value = True
+    mock_limiter.acquire_concurrency.return_value = True
+    
+    mock_engine = mock_engine_class.return_value
+    from src.rag.retrieval_models import RuntimeResponse, RetrievalStatistics
+    mock_response = RuntimeResponse(
+        platform_id="tensor",
+        retrieved_chunks=[],
+        formatted_context="Sample policy context",
+        statistics=RetrievalStatistics(
+            query_latency_ms=2.0,
+            chunks_count=0,
+            score_distribution=[]
+        )
+    )
+    mock_engine.retrieve = AsyncMock(return_value=mock_response)
+
+    bot_uuid = str(uuid.uuid4())
+    payload = {
+        "bot_id": bot_uuid,
+        "prompt": "hello",
+        "stream": True,
+        "conversation_id": "conv_sse_disconnect_test"
+    }
+
+    resp = client.post(
+        "/api/v1/chat/stream",
+        headers={"X-Envoy-API-Key": "some_valid_token"},
+        json=payload
+    )
+
+    assert resp.status_code == 200
+    
+    # Read only one line to start iteration, then close
+    for _ in resp.iter_lines():
+        break
+    resp.close()
+        
+    # Verify concurrency was released
+    assert mock_limiter.release_concurrency.called
+
+
+@patch("src.services.metrics_service.logger.warning")
+def test_telemetry_uuid_parse_failure_warning_logging(mock_warning_log):
+    from src.services.metrics_service import MetricsService
+    
+    mock_db = MagicMock()
+    # Mock return value of query(ChatSessionAnalytics).filter_by().first() to be None (new session)
+    mock_db.query.return_value.filter_by.return_value.first.return_value = None
+    
+    metrics_svc = MetricsService(mock_db)
+    
+    event_payload = {
+        "event_id": str(uuid.uuid4()),
+        "platform_id": "tensor",
+        "tenant_id": "invalid_tenant_uuid_string",
+        "bot_id": "invalid_bot_uuid_string",
+        "session_id": "conv_test_123",
+        "timestamp": "2026-07-11T09:00:00Z",
+        "payload": {
+            "query": "hello",
+            "assistant_response": "Hi!",
+            "response_latency_ms": 150.0,
+            "token_usage": 10
+        },
+        "metadata": {
+            "correlation_id": "test-correlation-123"
+        }
+    }
+    
+    session = metrics_svc.log_chat_telemetry(event_payload)
+    
+    # Verify that warning logs were called for both tenant_id and bot_id
+    assert mock_warning_log.call_count == 2
+    
+    # Inspect warning log arguments to verify that they contain required context
+    warning_calls = [call[0][0] for call in mock_warning_log.call_args_list]
+    
+    assert any("Failed to parse tenant_id" in msg for msg in warning_calls)
+    assert any("Failed to parse bot_id" in msg for msg in warning_calls)
+    assert any("invalid_tenant_uuid_string" in msg for msg in warning_calls)
+    assert any("invalid_bot_uuid_string" in msg for msg in warning_calls)
+    assert any("tensor" in msg for msg in warning_calls)
+    assert any("conv_test_123" in msg for msg in warning_calls)
+    assert any("test-correlation-123" in msg for msg in warning_calls)
+
+    # Verify that it fell back to None (so UUID columns get valid UUIDs or None)
+    # The session constructed should have tenant_id=None and bot_id=None
+    added_objects = [call[0][0] for call in mock_db.add.call_args_list]
+    chat_session_obj = next(obj for obj in added_objects if type(obj).__name__ == "ChatSessionAnalytics")
+    assert chat_session_obj.tenant_id is None
+    assert chat_session_obj.bot_id is None
+
+

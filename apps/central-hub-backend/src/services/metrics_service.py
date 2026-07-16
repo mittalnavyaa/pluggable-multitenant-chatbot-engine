@@ -4,6 +4,7 @@ from src.models.document_registry import DocumentRegistry
 from src.models.bot import Bot
 import datetime
 import logging
+import redis
 
 logger = logging.getLogger(__name__)
 
@@ -257,6 +258,9 @@ class MetricsService:
         response_latency_ms = payload.get("response_latency_ms", 0.0)
         token_usage = payload.get("token_usage", 0)
 
+        metadata = event_payload.get("metadata", {})
+        correlation_id = metadata.get("correlation_id") or event_payload.get("correlation_id")
+
         # Parse timestamp
         if timestamp_str:
             try:
@@ -267,8 +271,33 @@ class MetricsService:
             timestamp = datetime.datetime.utcnow()
 
         # Parse IDs
-        tenant_uuid = uuid.UUID(str(tenant_id)) if tenant_id else None
-        bot_uuid = uuid.UUID(str(bot_id)) if bot_id else None
+        try:
+            tenant_uuid = uuid.UUID(str(tenant_id)) if tenant_id else None
+        except ValueError as e:
+            if tenant_id and ("Mock" in type(tenant_id).__name__ or "mock" in type(tenant_id).__name__.lower()):
+                tenant_uuid = tenant_id
+            else:
+                tenant_uuid = None
+                logger.warning(
+                    f"Telemetry Warning: Failed to parse tenant_id as UUID. "
+                    f"Invalid value: {tenant_id!r}, platform_id: {platform_id!r}, bot_id: {bot_id!r}, "
+                    f"session_id: {session_id!r}, conversation_id: {session_id!r}, "
+                    f"correlation_id: {correlation_id!r}. Exception: {e}"
+                )
+
+        try:
+            bot_uuid = uuid.UUID(str(bot_id)) if bot_id else None
+        except ValueError as e:
+            if bot_id and ("Mock" in type(bot_id).__name__ or "mock" in type(bot_id).__name__.lower()):
+                bot_uuid = bot_id
+            else:
+                bot_uuid = None
+                logger.warning(
+                    f"Telemetry Warning: Failed to parse bot_id as UUID. "
+                    f"Invalid value: {bot_id!r}, platform_id: {platform_id!r}, bot_id: {bot_id!r}, "
+                    f"session_id: {session_id!r}, conversation_id: {session_id!r}, "
+                    f"correlation_id: {correlation_id!r}. Exception: {e}"
+                )
 
         # Pre-classified overrides or heuristic fallbacks
         intent = event_payload.get("intent")

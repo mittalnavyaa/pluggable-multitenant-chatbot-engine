@@ -586,6 +586,27 @@ from fastapi.responses import StreamingResponse
 import asyncio
 
 
+async def concurrency_release_generator(
+    generator,
+    concurrency_acquired: bool,
+    rate_limit_key: str,
+    request_id: str
+):
+    try:
+        async for chunk in generator:
+            yield chunk
+    finally:
+        try:
+            await generator.aclose()
+        except Exception as e:
+            logger.error(f"Failed to close inner generator: {e}")
+        if concurrency_acquired:
+            try:
+                limiter.release_concurrency(rate_limit_key, request_id)
+            except Exception as e:
+                logger.error(f"Failed to release concurrency in stream finally block: {e}")
+
+
 @chat_router.post("/stream")
 async def chat_stream(
     request: Request,
@@ -783,7 +804,8 @@ async def chat_stream(
                 "best_similarity_score": rag_response.best_similarity_score,
                 "retrieved_chunk_ids": rag_response.retrieved_chunk_ids,
                 "retrieved_document_ids": rag_response.retrieved_document_ids,
-                "fallback_triggered": rag_response.fallback_triggered
+                "fallback_triggered": rag_response.fallback_triggered,
+                "correlation_id": correlation_id
             }
         }
 
@@ -792,17 +814,22 @@ async def chat_stream(
         
         if payload.stream:
             return StreamingResponse(
-                ChatService.generate_chat_stream(
-                    prompt=payload.prompt,
-                    rag_response=rag_response,
-                    conversation_id=conversation_id,
-                    bot_id=bot_id,
-                    platform_id=platform_id,
-                    product_db_id=product_db_id,
-                    event_payload=event_payload,
-                    message_id=message_id,
-                    start_time=start_time,
-                    metrics_svc=metrics_svc
+                concurrency_release_generator(
+                    ChatService.generate_chat_stream(
+                        prompt=payload.prompt,
+                        rag_response=rag_response,
+                        conversation_id=conversation_id,
+                        bot_id=bot_id,
+                        platform_id=platform_id,
+                        product_db_id=product_db_id,
+                        event_payload=event_payload,
+                        message_id=message_id,
+                        start_time=start_time,
+                        metrics_svc=metrics_svc
+                    ),
+                    concurrency_acquired=concurrency_acquired,
+                    rate_limit_key=rate_limit_key,
+                    request_id=request_id
                 ),
                 media_type="text/event-stream",
                 headers={
