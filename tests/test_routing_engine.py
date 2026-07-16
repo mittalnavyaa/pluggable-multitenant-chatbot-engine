@@ -276,9 +276,10 @@ async def test_tenant_semantic_cache_hit_and_miss(mock_redis_class):
 # API Gateway End-to-End Tests with Database Setup
 # ---------------------------------------------------------------------------
 
+@patch("src.routers.query.SessionLocal")
 @patch("src.middleware.auth.SessionLocal")
 @patch("src.rag.routing_engine.qdrant_client")
-def test_api_gateway_tenant_isolation_boundary(mock_qdrant_client_instance, mock_session_local):
+def test_api_gateway_tenant_isolation_boundary(mock_qdrant_client_instance, mock_auth_session_local, mock_query_session_local):
     prod_admissions_id = "prod_admissions_test"
     prod_tensor_id = "prod_tensor_test"
     
@@ -303,131 +304,117 @@ def test_api_gateway_tenant_isolation_boundary(mock_qdrant_client_instance, mock
     
     mock_session = MagicMock()
     class MockQuery:
+        last_product = [None]
+
         def __init__(self, model):
             self.model = model
-            self.current_hash = None
-            
+            self.current_filter_val = None
+
         def filter(self, expr):
             try:
-                self.current_hash = expr.right.value
+                self.current_filter_val = expr.right.value
             except AttributeError:
                 try:
-                    self.current_hash = expr.right.effective_value
+                    self.current_filter_val = expr.right.effective_value
                 except AttributeError:
                     pass
             return self
+
+        def first(self):
+            from src.models.bot import Bot
+            if self.model == Bot:
+                mock_bot = MagicMock()
+                mock_bot.id = self.current_filter_val
+                mock_bot.status = "ACTIVE"
+                mock_bot.product_id = self.__class__.last_product[0].id if self.__class__.last_product[0] else uuid.uuid4()
+                mock_bot.ui_theme_config = {}
+                mock_bot.prompt_config = {}
+                return mock_bot
             
-        class MockQuery:
-            last_product = [None]
+            prod = token_to_prod.get(self.current_filter_val)
+            self.__class__.last_product[0] = prod
+            return prod
 
-            def __init__(self, model):
-                self.model = model
-                self.current_filter_val = None
-
-            def filter(self, expr):
-                try:
-                    self.current_filter_val = expr.right.value
-                except AttributeError:
-                    try:
-                        self.current_filter_val = expr.right.effective_value
-                    except AttributeError:
-                        pass
-                return self
-
-            def first(self):
-                from src.models.bot import Bot
-                if self.model == Bot:
-                    mock_bot = MagicMock()
-                    mock_bot.id = self.current_filter_val
-                    mock_bot.status = "ACTIVE"
-                    mock_bot.product_id = self.__class__.last_product[0].id if self.__class__.last_product[0] else uuid.uuid4()
-                    return mock_bot
-                
-                prod = token_to_prod.get(self.current_filter_val)
-                self.__class__.last_product[0] = prod
-                return prod
-
-
-
-        mock_session.query.side_effect = MockQuery
-        mock_session_local.return_value = mock_session
+    mock_session.query.side_effect = MockQuery
+    mock_auth_session_local.return_value = mock_session
+    mock_query_session_local.return_value = mock_session
         
-        def mock_qdrant_search(*args, **kwargs):
-            query_filter = kwargs.get("query_filter")
-            platform_id = query_filter.must[0].match.value
-            
-            if platform_id == prod_admissions_id:
-                mock_point = MagicMock()
-                mock_point.id = 1
-                mock_point.score = 0.9
-                mock_point.payload = {
-                    "platform_id": prod_admissions_id,
-                    "product_id": prod_admissions_id,
-                    "tenant_id": prod_admissions_id,
-                    "content": "Secret Admissions Office Data",
-                    "document_id": str(uuid.uuid4()),
-                    "chunk_id": "0",
-                    "page_number": 1,
-                    "source_filename": "admissions.txt"
-                }
-                return [mock_point]
-            elif platform_id == prod_tensor_id:
-                mock_point = MagicMock()
-                mock_point.id = 2
-                mock_point.score = 0.95
-                mock_point.payload = {
-                    "platform_id": prod_tensor_id,
-                    "product_id": prod_tensor_id,
-                    "tenant_id": prod_tensor_id,
-                    "content": "Proprietary Tensor Engine Specs",
-                    "document_id": str(uuid.uuid4()),
-                    "chunk_id": "0",
-                    "page_number": 1,
-                    "source_filename": "tensor.txt"
-                }
-                return [mock_point]
-            return []
-
-        mock_qdrant_client_instance.search.side_effect = mock_qdrant_search
+    def mock_qdrant_search(*args, **kwargs):
+        query_filter = kwargs.get("query_filter")
+        platform_id = query_filter.must[0].match.value
         
-        with patch("src.rag.routing_engine.EmbeddingService") as mock_emb_service_class, \
-             patch("src.rag.routing_engine.ContextIsolationRoutingEngine._validate_platform") as mock_val_plat:
-            mock_emb = mock_emb_service_class.return_value
-            mock_emb.generate_embedding.return_value = [0.1] * 1536
-            
-            bot_uuid = str(uuid.uuid4())
-            resp = client.post(
-                "/api/v1/bots/retrieve",
-                headers={"Authorization": f"Bearer {token_admissions}"},
-                json={"query": "office data", "conversation_id": "c1", "bot_id": bot_uuid}
-            )
-            assert resp.status_code == 200, resp.text
-            data = resp.json()
-            assert data["platform_id"] == prod_admissions_id
-            assert len(data["retrieved_chunks"]) == 1
-            assert data["retrieved_chunks"][0]["content"] == "Secret Admissions Office Data"
-            
-            resp = client.post(
-                "/api/v1/bots/retrieve",
-                headers={"Authorization": f"Bearer {token_tensor}"},
-                json={"query": "engine specs", "conversation_id": "c2", "bot_id": bot_uuid}
-            )
-            assert resp.status_code == 200, resp.text
-            data = resp.json()
-            assert data["platform_id"] == prod_tensor_id
-            assert len(data["retrieved_chunks"]) == 1
-            assert data["retrieved_chunks"][0]["content"] == "Proprietary Tensor Engine Specs"
+        if platform_id == prod_admissions_id:
+            mock_point = MagicMock()
+            mock_point.id = 1
+            mock_point.score = 0.9
+            mock_point.payload = {
+                "platform_id": prod_admissions_id,
+                "product_id": prod_admissions_id,
+                "tenant_id": prod_admissions_id,
+                "content": "Secret Admissions Office Data",
+                "document_id": str(uuid.uuid4()),
+                "chunk_id": "0",
+                "page_number": 1,
+                "source_filename": "admissions.txt"
+            }
+            return [mock_point]
+        elif platform_id == prod_tensor_id:
+            mock_point = MagicMock()
+            mock_point.id = 2
+            mock_point.score = 0.95
+            mock_point.payload = {
+                "platform_id": prod_tensor_id,
+                "product_id": prod_tensor_id,
+                "tenant_id": prod_tensor_id,
+                "content": "Proprietary Tensor Engine Specs",
+                "document_id": str(uuid.uuid4()),
+                "chunk_id": "0",
+                "page_number": 1,
+                "source_filename": "tensor.txt"
+            }
+            return [mock_point]
+        return []
 
-            resp = client.post(
-                "/api/v1/bots/retrieve",
-                headers={"Authorization": f"Bearer {token_admissions}"},
-                json={"query": "Proprietary Tensor Engine Specs", "conversation_id": "c1", "bot_id": bot_uuid}
-            )
-            assert resp.status_code == 200
-            data = resp.json()
-            for chunk in data["retrieved_chunks"]:
-                assert chunk["content"] != "Proprietary Tensor Engine Specs"
-                assert chunk["metadata"]["platform_id"] == prod_admissions_id
+    mock_qdrant_client_instance.search.side_effect = mock_qdrant_search
+    
+    with patch("src.rag.routing_engine.EmbeddingService") as mock_emb_service_class, \
+         patch("src.rag.routing_engine.ContextIsolationRoutingEngine._validate_platform") as mock_val_plat:
+        mock_emb = mock_emb_service_class.return_value
+        mock_emb.generate_embedding.return_value = [0.1] * 1536
+        
+        bot_uuid = str(uuid.uuid4())
+        resp = client.post(
+            "/api/v1/bots/retrieve",
+            headers={"Authorization": f"Bearer {token_admissions}"},
+            json={"query": "office data", "conversation_id": "c1", "bot_id": bot_uuid}
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["platform_id"] == prod_admissions_id
+        assert len(data["retrieved_chunks"]) == 1
+        assert data["retrieved_chunks"][0]["content"] == "Secret Admissions Office Data"
+        
+        resp = client.post(
+            "/api/v1/bots/retrieve",
+            headers={"Authorization": f"Bearer {token_tensor}"},
+            json={"query": "engine specs", "conversation_id": "c2", "bot_id": bot_uuid}
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["platform_id"] == prod_tensor_id
+        assert len(data["retrieved_chunks"]) == 1
+        assert data["retrieved_chunks"][0]["content"] == "Proprietary Tensor Engine Specs"
+
+        resp = client.post(
+            "/api/v1/bots/retrieve",
+            headers={"Authorization": f"Bearer {token_admissions}"},
+            json={"query": "Proprietary Tensor Engine Specs", "conversation_id": "c1", "bot_id": bot_uuid}
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        for chunk in data["retrieved_chunks"]:
+            assert chunk["content"] != "Proprietary Tensor Engine Specs"
+            assert chunk["metadata"]["platform_id"] == prod_admissions_id
 
 def test_api_gateway_missing_token_rejection():
     resp = client.post(
