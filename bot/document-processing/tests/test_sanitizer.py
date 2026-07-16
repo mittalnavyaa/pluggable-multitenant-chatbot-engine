@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from typing import Generator
 from llm.base_provider import (
     BaseLLMProvider,
     LLMAuthenticationError,
@@ -34,6 +35,22 @@ class FakeProvider(BaseLLMProvider):
         assert "Markdown" in system_prompt
         assert "Return only the cleaned Markdown" in cleaning_prompt
         return self.response
+
+    def generate(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.0,
+        max_tokens: int | None = None,
+    ) -> str:
+        return self.response
+
+    def generate_stream(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.0,
+        max_tokens: int | None = None,
+    ) -> Generator[str, None, None]:
+        yield self.response
 
 
 class FailingProvider(FakeProvider):
@@ -176,6 +193,22 @@ class ChunkRecordingProvider(BaseLLMProvider):
     ) -> str:
         self.chunks_received.append(raw_text)
         return f"CLEANED: {raw_text.strip()}"
+
+    def generate(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.0,
+        max_tokens: int | None = None,
+    ) -> str:
+        return "CLEANED"
+
+    def generate_stream(
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0.0,
+        max_tokens: int | None = None,
+    ) -> Generator[str, None, None]:
+        yield "CLEANED"
 
 
 def test_split_text_into_chunks_with_page_markers(tmp_path: Path) -> None:

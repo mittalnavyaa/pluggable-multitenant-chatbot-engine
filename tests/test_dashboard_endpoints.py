@@ -70,15 +70,16 @@ def test_bots_and_documents_endpoints():
         assert matching_bots[0]["name"] == bot_payload["name"]
         
         # 4. Insert mock documents directly into database for listing assertions
-        doc_id = str(uuid.uuid4())
+        doc_uuid = uuid.uuid4()
+        doc_id = doc_uuid
         db.execute(
             text(
                 "INSERT INTO document_registry (id, bot_id, filename, storage_path, document_hash, processing_status) "
                 "VALUES (:id, :bot_id, 'test_dashboard_file.pdf', 'bot_test/test.pdf', 'test_hash', 'COMPLETED')"
             ),
             {
-                "id": doc_id,
-                "bot_id": bot_id
+                "id": doc_uuid,
+                "bot_id": uuid.UUID(bot_id)
             }
         )
         db.commit()
@@ -87,7 +88,7 @@ def test_bots_and_documents_endpoints():
         response = client.get("/api/v1/documents", headers=headers)
         assert response.status_code == 200
         docs = response.json()
-        matching_docs = [d for d in docs if d["id"] == doc_id]
+        matching_docs = [d for d in docs if d["id"].replace("-", "") == doc_uuid.hex]
         assert len(matching_docs) == 1
         assert matching_docs[0]["filename"] == "test_dashboard_file.pdf"
         assert matching_docs[0]["status"] == "completed"

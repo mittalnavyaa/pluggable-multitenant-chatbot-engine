@@ -58,8 +58,11 @@ def setup_tenants():
     from src.database.base import Base
     from src.database.database import engine
     with engine.connect() as conn:
-        conn.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"'))
-        conn.commit()
+        try:
+            conn.execute(text('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"'))
+            conn.commit()
+        except Exception:
+            pass
     Base.metadata.create_all(bind=engine)
     
     db = SessionLocal()

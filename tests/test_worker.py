@@ -52,6 +52,9 @@ def test_celery_worker_pipeline():
     root_logger.addHandler(handler)
     root_logger.setLevel(logging.INFO)
 
+    from src.database.base import Base
+    from src.database.database import engine
+    Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     
     # 1. Generate unique UUIDs for product, bot, and document

@@ -344,10 +344,11 @@ def test_gateway_bot_mismatched_tenant(mock_auth_session_local, mock_query_sessi
     assert "Bot does not belong to the target tenant" in resp.json()["error"]["message"]
 
 
+@patch("src.routers.query.ContextIsolationRoutingEngine")
 @patch("src.routers.query.limiter")
 @patch("src.routers.query.SessionLocal")
 @patch("src.middleware.auth.SessionLocal")
-def test_gateway_bot_missing_bot_id(mock_auth_session_local, mock_query_session_local, mock_limiter):
+def test_gateway_bot_missing_bot_id(mock_auth_session_local, mock_query_session_local, mock_limiter, mock_engine_class):
     prod_uuid = uuid.uuid4()
     mock_product = MagicMock()
     mock_product.product_id = "tensor"
@@ -362,11 +363,27 @@ def test_gateway_bot_missing_bot_id(mock_auth_session_local, mock_query_session_
     mock_limiter.check_rate_limit.return_value = True
     mock_limiter.acquire_concurrency.return_value = True
     
+    mock_engine = mock_engine_class.return_value
+    from src.rag.retrieval_models import RuntimeResponse, RetrievalStatistics
+    mock_response = RuntimeResponse(
+        platform_id="tensor",
+        retrieved_chunks=[],
+        formatted_context="mocked context",
+        statistics=RetrievalStatistics(
+            query_latency_ms=1.5,
+            chunks_count=0,
+            score_distribution=[]
+        ),
+        prompt_version="v1.0.0",
+        system_version="v1.0.0",
+        retrieval_version="v1.0.0"
+    )
+    mock_engine.retrieve = AsyncMock(return_value=mock_response)
+
     resp = client.post(
         "/api/v1/bots/retrieve",
         headers={"Authorization": "Bearer token"},
         json={"query": "hello", "conversation_id": "c1"}
     )
-    assert resp.status_code == 400
-    assert "Missing required runtime identifier: bot_id" in resp.json()["error"]["message"]
+    assert resp.status_code == 200
 

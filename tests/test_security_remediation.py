@@ -59,10 +59,10 @@ def test_security_remediation_suite():
     
     bot1_id = str(uuid.uuid4())
     db.execute(text('INSERT INTO bots (id, product_id, bot_name) VALUES (:id, :product_id, :bot_name)'),
-               {'id': bot1_id, 'product_id': product_uuid, 'bot_name': 'Test Bot 1'})
+               {'id': uuid.UUID(bot1_id), 'product_id': uuid.UUID(product_uuid), 'bot_name': 'Test Bot 1'})
     bot2_id = str(uuid.uuid4())
     db.execute(text('INSERT INTO bots (id, product_id, bot_name) VALUES (:id, :product_id, :bot_name)'),
-               {'id': bot2_id, 'product_id': product_uuid, 'bot_name': 'Test Bot 2'})
+               {'id': uuid.UUID(bot2_id), 'product_id': uuid.UUID(product_uuid), 'bot_name': 'Test Bot 2'})
     db.commit()
     
     # 3. Test File extension validation
