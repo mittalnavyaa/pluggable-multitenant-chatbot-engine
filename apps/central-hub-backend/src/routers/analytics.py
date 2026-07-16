@@ -138,6 +138,7 @@ def get_conversation_volume(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     by_hour: bool = False,
+    bot_id: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     from sqlalchemy import text
@@ -158,6 +159,13 @@ def get_conversation_volume(
     if product_db_id:
         sql += " AND tenant_id = :tenant_id"
         params["tenant_id"] = uuid.UUID(str(product_db_id))
+        
+    if bot_id:
+        try:
+            params["bot_id"] = uuid.UUID(str(bot_id))
+            sql += " AND bot_id = :bot_id"
+        except ValueError:
+            pass
     
     if start_date:
         sql += " AND timestamp >= :start_date"
@@ -183,6 +191,7 @@ def get_conversation_volume(
 def get_resolution_rate(
     request: Request,
     start_date: Optional[str] = None,
+    bot_id: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     from sqlalchemy import text
@@ -200,6 +209,13 @@ def get_resolution_rate(
     if product_db_id:
         sql += " AND tenant_id = :tenant_id"
         params["tenant_id"] = uuid.UUID(str(product_db_id))
+        
+    if bot_id:
+        try:
+            params["bot_id"] = uuid.UUID(str(bot_id))
+            sql += " AND bot_id = :bot_id"
+        except ValueError:
+            pass
     
     if start_date:
         sql += " AND created_at >= :start_date"
@@ -221,6 +237,7 @@ def get_resolution_rate(
 def get_intent_distribution(
     request: Request,
     start_date: Optional[str] = None,
+    bot_id: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     from sqlalchemy import text
@@ -238,6 +255,13 @@ def get_intent_distribution(
     if product_db_id:
         sql += " AND tenant_id = :tenant_id"
         params["tenant_id"] = uuid.UUID(str(product_db_id))
+        
+    if bot_id:
+        try:
+            params["bot_id"] = uuid.UUID(str(bot_id))
+            sql += " AND bot_id = :bot_id"
+        except ValueError:
+            pass
     
     if start_date:
         sql += " AND created_at >= :start_date"
@@ -256,6 +280,7 @@ def get_intent_distribution(
 def get_sales_leads(
     request: Request,
     status: Optional[str] = None,
+    bot_id: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     from sqlalchemy import text
@@ -278,6 +303,13 @@ def get_sales_leads(
     if product_db_id:
         sql += " AND tenant_id = :tenant_id"
         params["tenant_id"] = uuid.UUID(str(product_db_id))
+        
+    if bot_id:
+        try:
+            params["bot_id"] = uuid.UUID(str(bot_id))
+            sql += " AND bot_id = :bot_id"
+        except ValueError:
+            pass
         
     if status:
         sql += " AND lead_status = :status"

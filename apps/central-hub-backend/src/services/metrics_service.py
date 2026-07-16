@@ -123,13 +123,15 @@ class MetricsService:
         retrieved_chunk_ids: list[str],
         retrieved_document_ids: list[str],
         token_usage: int | None,
-        fallback_triggered: bool
+        fallback_triggered: bool,
+        bot_id: str | None = None
     ):
         """Persists query retrieval metrics to database."""
         from src.models.analytics import QueryRetrievalMetrics
         
         metrics = QueryRetrievalMetrics(
             platform_id=platform_id,
+            bot_id=bot_id,
             query=query,
             conversation_id=conversation_id,
             retrieval_latency_ms=retrieval_latency_ms,
@@ -157,13 +159,15 @@ class MetricsService:
         platform_id: str | None,
         status: str,
         error_reason: str | None,
-        latency_ms: float
+        latency_ms: float,
+        bot_id: str | None = None
     ):
         """Persists gateway routing and validation metrics to the database."""
         from src.models.analytics import GatewayMetrics
         
         metrics = GatewayMetrics(
             platform_id=platform_id,
+            bot_id=bot_id,
             status=status,
             error_reason=error_reason,
             latency_ms=latency_ms

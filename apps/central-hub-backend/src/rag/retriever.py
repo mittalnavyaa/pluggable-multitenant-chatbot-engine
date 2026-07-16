@@ -2,7 +2,7 @@
 
 import time
 import logging
-from typing import List, Any
+from typing import List, Any, Optional
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.documents import Document
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
@@ -21,6 +21,7 @@ class IsolatedQdrantRetriever(BaseRetriever):
     collection_name: str
     embedding_service: Any
     platform_id: str
+    bot_id: Optional[str] = None
     top_k: int
     score_threshold: float
     timeout: float
@@ -44,12 +45,12 @@ class IsolatedQdrantRetriever(BaseRetriever):
             raise EmbeddingGenerationError(f"Embedding computation failed: {e}") from e
 
         # 2. Build tenant filter
-        tenant_filter = build_tenant_filter(self.platform_id)
+        tenant_filter = build_tenant_filter(self.platform_id, self.bot_id)
 
         # 3. Query Qdrant with timeout handler
         start_time = time.time()
         try:
-            logger.info(f"Searching Qdrant collection '{self.collection_name}' for tenant '{self.platform_id}'")
+            logger.info(f"Searching Qdrant collection '{self.collection_name}' for tenant '{self.platform_id}' (bot: '{self.bot_id}')")
             if hasattr(self.qdrant_client, "search"):
                 search_results = self.qdrant_client.search(
                     collection_name=self.collection_name,
@@ -107,6 +108,16 @@ class IsolatedQdrantRetriever(BaseRetriever):
                     f"belonging to tenant '{pt_platform_id}'."
                 )
                 raise InvalidMetadataError("Data boundary violation: retrieved point does not match requested tenant.")
+
+            if self.bot_id:
+                pt_bot_id = payload.get("bot_id")
+                if pt_bot_id and str(pt_bot_id) != str(self.bot_id):
+                    logger.critical(
+                        f"CRITICAL SECURITY BOUNDARY BREACH DETECTED! "
+                        f"Queried bot '{self.bot_id}', but retrieved point '{res.id}' "
+                        f"belonging to bot '{pt_bot_id}'."
+                    )
+                    raise InvalidMetadataError("Data boundary violation: retrieved point does not match requested bot.")
 
             # Construct Document
             content = payload.get("content")

@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from src.database.base import Base
 
 class Bot(Base):
@@ -21,6 +21,14 @@ class Bot(Base):
     )
     description = Column(
         Text,
+        nullable=True
+    )
+    ui_theme_config = Column(
+        JSONB,
+        nullable=True
+    )
+    prompt_config = Column(
+        JSONB,
         nullable=True
     )
     status = Column(

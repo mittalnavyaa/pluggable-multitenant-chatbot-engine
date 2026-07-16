@@ -51,7 +51,8 @@ class ContextIsolationRoutingEngine:
         conversation_id: str,
         chat_history: Optional[List[Dict[str, Any]]] = None,
         db: Optional[Any] = None,
-        validated_context: Optional[Any] = None
+        validated_context: Optional[Any] = None,
+        bot_id: Optional[str] = None
     ) -> RuntimeResponse:
         """
         Executes the optimized isolation retrieval pipeline.
@@ -63,6 +64,8 @@ class ContextIsolationRoutingEngine:
         # If validated context is provided, trust and extract platform_id from it
         if validated_context is not None:
             platform_id = validated_context.platform_id
+            if hasattr(validated_context, "bot_id") and validated_context.bot_id:
+                bot_id = validated_context.bot_id
 
         # --- Stage 1: Input Validation ---
         if not platform_id or not isinstance(platform_id, str) or not platform_id.strip():
@@ -139,6 +142,7 @@ class ContextIsolationRoutingEngine:
                 collection_name=self.collection_name,
                 embedding_service=self.embedding_service,
                 platform_id=clean_platform_id,
+                bot_id=bot_id,
                 top_k=self.config.top_k,
                 score_threshold=self.config.score_threshold,
                 timeout=self.config.timeout,
@@ -174,7 +178,8 @@ class ContextIsolationRoutingEngine:
                     retrieved_context=formatted_context,
                     chat_history=chat_history,
                     db=db,
-                    force_fallback=force_fallback
+                    force_fallback=force_fallback,
+                    bot_id=bot_id
                 )
             )
 

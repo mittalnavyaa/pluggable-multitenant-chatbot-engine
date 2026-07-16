@@ -77,6 +77,7 @@ class QueryRetrievalMetrics(Base):
         server_default=sa_text("uuid_generate_v4()")
     )
     platform_id = Column(String(100), nullable=False)
+    bot_id = Column(String(100), nullable=True)
     query = Column(String(4000), nullable=False)
     conversation_id = Column(String(100), nullable=True)
     
@@ -109,6 +110,7 @@ class GatewayMetrics(Base):
         server_default=sa_text("uuid_generate_v4()")
     )
     platform_id = Column(String(100), nullable=True)
+    bot_id = Column(String(100), nullable=True)
     status = Column(String(50), nullable=False)  # e.g., ACCEPTED, RATE_LIMITED, AUTH_FAILURE, VALIDATION_FAILURE
     error_reason = Column(String(255), nullable=True)
     latency_ms = Column(Float, nullable=False)

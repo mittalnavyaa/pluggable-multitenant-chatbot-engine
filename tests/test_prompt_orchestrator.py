@@ -181,3 +181,66 @@ def test_observability_and_token_estimation():
     
     assert tokens > 0
     assert duration >= 0.0
+
+def test_bot_branding_and_prompt_overrides():
+    from src.models.bot import Bot
+    from src.models.internal_product import InternalProduct
+    
+    mock_db = MagicMock()
+    mock_product = MagicMock()
+    mock_product.id = uuid.UUID("11111111-1111-1111-1111-111111111111")
+    mock_product.product_name = "Cloud Portal"
+    mock_product.ui_theme_config = {
+        "company_name": "Cloud Ltd",
+        "product_name": "Portal Service",
+        "brand_tone": "highly empathetic",
+        "content": {
+            "widgetTitle": "Portal Bot"
+        }
+    }
+    
+    mock_bot = MagicMock()
+    mock_bot.id = uuid.UUID("22222222-2222-2222-2222-222222222222")
+    mock_bot.product_id = mock_product.id
+    mock_bot.bot_name = "Custom Bot Name"
+    mock_bot.ui_theme_config = {
+        "company_name": "Cloud Overridden Ltd",
+        "brand_tone": "friendly and funny",
+        "content": {
+            "widgetTitle": "Bot Override Widget"
+        }
+    }
+    mock_bot.prompt_config = {
+        "formatting_rules": "Respond in poetry form.",
+        "response_tone": "funny and quick"
+    }
+
+    def mock_query_filter(model_cls):
+        mock_query = MagicMock()
+        if model_cls == InternalProduct:
+            mock_query.filter.return_value.first.return_value = mock_product
+        elif model_cls == Bot:
+            mock_query.filter.return_value.first.return_value = mock_bot
+        return mock_query
+    
+    mock_db.query.side_effect = mock_query_filter
+
+    orchestrator = PromptOrchestrator()
+    profile = orchestrator.get_tenant_profile("prod_cloud", mock_db, bot_id=str(mock_bot.id))
+    
+    assert profile.company_name == "Cloud Overridden Ltd"
+    assert profile.product_name == "Portal Service"
+    assert profile.bot_name == "Bot Override Widget"
+    assert profile.brand_tone == "friendly and funny"
+    
+    prompt, _, _, _ = orchestrator.build_final_prompt(
+        platform_id="prod_cloud",
+        query="Tell me about pricing",
+        retrieved_context="Some simple context.",
+        chat_history=None,
+        db=mock_db,
+        bot_id=str(mock_bot.id)
+    )
+    
+    assert "poetry form" in prompt
+    assert "funny and quick" in prompt

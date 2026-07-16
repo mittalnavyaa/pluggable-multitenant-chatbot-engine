@@ -437,3 +437,50 @@ def test_api_gateway_missing_token_rejection():
     assert resp.status_code == 401
     assert resp.json()["error"]["code"] == "UNAUTHORIZED"
 
+def test_retriever_bot_id_filtering(mock_embedding_service, mock_qdrant_client):
+    from src.rag.filters import build_tenant_filter
+    from src.rag.retriever import IsolatedQdrantRetriever
+    
+    # Assert build_tenant_filter with bot_id
+    q_filter = build_tenant_filter(platform_id="prod_1", bot_id="bot_123")
+    must_keys = [cond.key for cond in q_filter.must]
+    assert "platform_id" in must_keys
+    assert "bot_id" in must_keys
+    
+    # Assert build_tenant_filter without bot_id
+    q_filter_no_bot = build_tenant_filter(platform_id="prod_1")
+    must_keys_no_bot = [cond.key for cond in q_filter_no_bot.must]
+    assert "platform_id" in must_keys_no_bot
+    assert "bot_id" not in must_keys_no_bot
+
+    # Assert IsolatedQdrantRetriever applies filter
+    retriever = IsolatedQdrantRetriever(
+        qdrant_client=mock_qdrant_client,
+        collection_name=QDRANT_COLLECTION,
+        embedding_service=mock_embedding_service,
+        platform_id="prod_1",
+        bot_id="bot_123",
+        top_k=3,
+        score_threshold=0.5,
+        timeout=5.0
+    )
+    
+    mock_point = MagicMock()
+    mock_point.id = 1
+    mock_point.score = 0.95
+    mock_point.payload = {
+        "platform_id": "prod_1",
+        "bot_id": "bot_123",
+        "content": "Bot-specific knowledge",
+        "document_id": "doc_1",
+        "chunk_id": "0",
+        "source_filename": "info.txt"
+    }
+    
+    mock_qdrant_client.search.return_value = [mock_point]
+        
+    docs = retriever.invoke("test query")
+    assert len(docs) == 1
+    assert docs[0].page_content == "Bot-specific knowledge"
+    assert docs[0].metadata["bot_id"] == "bot_123"
+
