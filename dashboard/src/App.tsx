@@ -71,7 +71,7 @@ function ProductDetailsRoute() {
 
 function BotsRoute() {
   const data = useEnterpriseDashboardData();
-  return <Bots products={data.products} />;
+  return <Bots products={data.products as any} />;
 }
 
 function BrandingRoute() {
@@ -79,7 +79,7 @@ function BrandingRoute() {
   if (!data.selectedProduct) {
     return <div style={{ padding: '24px', color: 'var(--color-text)' }}>Please select a product to manage branding.</div>;
   }
-  return <Branding product={data.selectedProduct} />;
+  return <Branding product={data.selectedProduct as any} onBrandingSaved={data.refreshProducts} />;
 }
 
 function DashboardApp() {

@@ -51,7 +51,7 @@ export function DashboardApp() {
     Products: <Products products={data.products} onViewDetails={viewDetails} />,
     Bots: <Bots products={data.products} />,
     'Product Details': selectedProduct ? <ProductDetails product={selectedProduct} /> : <div style={{ padding: '24px', color: 'var(--color-text)' }}>No product selected.</div>,
-    Branding: selectedProduct ? <Branding product={selectedProduct} /> : <div style={{ padding: '24px', color: 'var(--color-text)' }}>Please select a product.</div>,
+    Branding: selectedProduct ? <Branding product={selectedProduct} onBrandingSaved={data.refreshProducts} /> : <div style={{ padding: '24px', color: 'var(--color-text)' }}>Please select a product.</div>,
     Uploads: <Uploads />,
     'API Keys': <ApiKeys keyRecords={data.keyRecords} />
   };

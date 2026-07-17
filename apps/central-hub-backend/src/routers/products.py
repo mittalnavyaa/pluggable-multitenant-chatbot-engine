@@ -128,3 +128,61 @@ def create_new_product(payload: ProductCreateSchema, db: Session = Depends(get_d
         updated_at=new_prod.updated_at.isoformat(),
         service_token=raw_token
     )
+
+
+class BrandingUpdateSchema(BaseModel):
+    colors: Optional[dict] = None
+    typography: Optional[dict] = None
+    layout: Optional[dict] = None
+    assets: Optional[dict] = None
+    content: Optional[dict] = None
+    featureFlags: Optional[dict] = None
+    overflowMenu: Optional[list] = None
+    theme: Optional[str] = None
+
+@router.patch("/{product_id}/branding", response_model=ProductResponseSchema)
+def update_product_branding(product_id: str, payload: BrandingUpdateSchema, db: Session = Depends(get_db)):
+    p = None
+    try:
+        val = uuid.UUID(product_id)
+        p = db.query(InternalProduct).filter(InternalProduct.id == val).first()
+    except ValueError:
+        pass
+        
+    if not p:
+        p = db.query(InternalProduct).filter(InternalProduct.product_id == product_id).first()
+        
+    if not p:
+        raise HTTPException(status_code=404, detail="Product not found")
+        
+    current_config = p.ui_theme_config or {}
+    if isinstance(current_config, str):
+        try:
+            current_config = json.loads(current_config)
+        except Exception:
+            current_config = {}
+            
+    payload_dict = payload.dict(exclude_unset=True)
+    
+    # Deep merge layout/colors/etc.
+    for key, val in payload_dict.items():
+        if val is not None:
+            if isinstance(val, dict) and key in current_config and isinstance(current_config[key], dict):
+                current_config[key] = {**current_config[key], **val}
+            else:
+                current_config[key] = val
+                
+    p.ui_theme_config = current_config
+    db.commit()
+    db.refresh(p)
+    
+    return ProductResponseSchema(
+        id=str(p.id),
+        product_id=p.product_id,
+        name=p.product_name,
+        description=None,
+        ui_theme_config=p.ui_theme_config or {},
+        created_at=p.created_at.isoformat(),
+        updated_at=p.updated_at.isoformat()
+    )
+
