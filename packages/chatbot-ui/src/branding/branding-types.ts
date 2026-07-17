@@ -12,6 +12,16 @@ export interface BrandingThemeColors {
   successColor?: string;
   warningColor?: string;
   errorColor?: string;
+
+  // Dark mode overrides
+  darkPrimaryColor?: string;
+  darkSecondaryColor?: string;
+  darkAccentColor?: string;
+  darkBackgroundColor?: string;
+  darkSurfaceColor?: string;
+  darkBorderColor?: string;
+  darkTextColor?: string;
+  darkMutedTextColor?: string;
 }
 
 export interface BrandingTypography {
@@ -23,6 +33,12 @@ export interface BrandingTypography {
   buttonTextSize?: string;
 }
 
+export interface WidgetPositionConfig {
+  anchor?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+  offsetX?: number;
+  offsetY?: number;
+}
+
 export interface BrandingLayout {
   chatWidth?: string;
   chatHeight?: string;
@@ -30,6 +46,7 @@ export interface BrandingLayout {
   padding?: string;
   spacing?: string;
   bubbleRadius?: string;
+  position?: WidgetPositionConfig;
 }
 
 export interface BrandingAssets {
@@ -47,6 +64,9 @@ export interface BrandingContent {
   offlineMessage?: string;
   errorMessage?: string;
   typingIndicatorText?: string;
+  subtitle?: string;
+  onlineStatus?: boolean | 'online' | 'offline';
+  suggestedQuestions?: string[];
 }
 
 export interface BrandingFeatureFlags {
@@ -58,6 +78,15 @@ export interface BrandingFeatureFlags {
   conversationHistory?: boolean;
 }
 
+export interface OverflowMenuItemConfig {
+  id: string;
+  label: string;
+  enabled?: boolean;
+  actionType: 'restart' | 'clear' | 'download' | 'url' | 'callback';
+  url?: string;
+  eventName?: string;
+}
+
 export interface BrandingConfig {
   colors: BrandingThemeColors;
   typography: BrandingTypography;
@@ -65,4 +94,6 @@ export interface BrandingConfig {
   assets: BrandingAssets;
   content: BrandingContent;
   featureFlags: BrandingFeatureFlags;
+  overflowMenu?: OverflowMenuItemConfig[];
+  theme?: 'light' | 'dark' | 'auto';
 }

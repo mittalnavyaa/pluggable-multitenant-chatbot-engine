@@ -22,7 +22,16 @@
       "mutedTextColor":  "#64748b",
       "successColor":    "#16a34a",
       "warningColor":    "#d97706",
-      "errorColor":      "#dc2626"
+      "errorColor":      "#dc2626",
+
+      "darkPrimaryColor": "#3b82f6",
+      "darkSecondaryColor": "#64748b",
+      "darkAccentColor": "#14b8a6",
+      "darkBackgroundColor": "#020617",
+      "darkSurfaceColor": "#0f172a",
+      "darkBorderColor": "#334155",
+      "darkTextColor": "#f8fafc",
+      "darkMutedTextColor": "#94a3b8"
     },
 
     "typography": {
@@ -42,7 +51,12 @@
       "borderRadius": "12px",
       "padding":      "16px",
       "spacing":      "12px",
-      "bubbleRadius": "8px"
+      "bubbleRadius": "8px",
+      "position": {
+        "anchor": "bottom-right",
+        "offsetX": 20,
+        "offsetY": 20
+      }
     },
 
     "assets": {
@@ -61,7 +75,14 @@
       "placeholderText":     "Type your question...",
       "offlineMessage":      "Tensor Assistant is currently offline. Please check back later.",
       "errorMessage":        "Something went wrong. Please try sending your message again.",
-      "typingIndicatorText": "Tensor is thinking..."
+      "typingIndicatorText": "Tensor is thinking...",
+      "subtitle":            "Online",
+      "onlineStatus":        "online",
+      "suggestedQuestions": [
+        "Pricing",
+        "Documentation",
+        "Contact Support"
+      ]
     },
 
     "featureFlags": {
@@ -72,7 +93,16 @@
       "typingAnimation":     true,
       "streamingResponses":  true,
       "conversationHistory": true
-    }
+    },
+
+    "overflowMenu": [
+      { "id": "restart", "label": "Restart Conversation", "enabled": true, "actionType": "restart" },
+      { "id": "clear", "label": "Clear Chat", "enabled": true, "actionType": "clear" },
+      { "id": "download", "label": "Download Conversation", "enabled": true, "actionType": "download" },
+      { "id": "privacy", "label": "Privacy Policy", "enabled": true, "actionType": "url", "url": "https://envoy.com/privacy" },
+      { "id": "about", "label": "About Bot", "enabled": true, "actionType": "callback", "eventName": "envoy-about-clicked" }
+    ],
+    "theme": "auto"
 
   }
 }

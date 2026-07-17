@@ -8,6 +8,7 @@ module.exports = {
     '^.+\\.tsx?$': ['ts-jest', { tsconfig: 'tsconfig.json' }]
   },
   moduleNameMapper: {
-    '\\?raw$': '<rootDir>/src/tests/raw-mock.js'
+    '\\?raw$': '<rootDir>/src/tests/raw-mock.js',
+    '\\?inline$': '<rootDir>/src/tests/raw-mock.js'
   }
 };

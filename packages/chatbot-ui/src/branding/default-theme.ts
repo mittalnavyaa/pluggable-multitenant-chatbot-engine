@@ -15,6 +15,16 @@ export const DEFAULT_ENVOY_THEME: BrandingConfig = {
     successColor: '#16a34a',     // green-600
     warningColor: '#d97706',     // amber-600
     errorColor: '#dc2626',       // red-600
+
+    // Dark mode overrides
+    darkPrimaryColor: '#3b82f6',
+    darkSecondaryColor: '#64748b',
+    darkAccentColor: '#10b981',
+    darkBackgroundColor: '#020617',
+    darkSurfaceColor: '#0f172a',
+    darkBorderColor: '#334155',
+    darkTextColor: '#f8fafc',
+    darkMutedTextColor: '#94a3b8',
   },
   typography: {
     fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -31,6 +41,11 @@ export const DEFAULT_ENVOY_THEME: BrandingConfig = {
     padding: '16px',
     spacing: '12px',
     bubbleRadius: '8px',
+    position: {
+      anchor: 'bottom-right',
+      offsetX: 20,
+      offsetY: 20
+    }
   },
   assets: {
     companyLogo: '',
@@ -41,11 +56,19 @@ export const DEFAULT_ENVOY_THEME: BrandingConfig = {
   },
   content: {
     widgetTitle: 'Envoy Support Assistant',
+    subtitle: 'Online',
+    onlineStatus: 'online',
     welcomeMessage: 'Hello! I am your Envoy AI helper. How can I assist you today?',
     placeholderText: 'Type a message...',
     offlineMessage: 'We are currently offline. Please check back later.',
     errorMessage: 'Something went wrong. Please try sending your message again.',
     typingIndicatorText: 'Agent is typing...',
+    suggestedQuestions: [
+      'Pricing',
+      'Documentation',
+      'Admissions',
+      'Contact Support'
+    ]
   },
   featureFlags: {
     fileUpload: true,
@@ -54,5 +77,13 @@ export const DEFAULT_ENVOY_THEME: BrandingConfig = {
     typingAnimation: true,
     streamingResponses: true,
     conversationHistory: true,
-  }
+  },
+  overflowMenu: [
+    { id: 'restart', label: 'Restart Conversation', enabled: true, actionType: 'restart' },
+    { id: 'clear', label: 'Clear Chat', enabled: true, actionType: 'clear' },
+    { id: 'download', label: 'Download Conversation', enabled: true, actionType: 'download' },
+    { id: 'privacy', label: 'Privacy Policy', enabled: true, actionType: 'url', url: 'https://envoy.com/privacy' },
+    { id: 'about', label: 'About Bot', enabled: true, actionType: 'callback', eventName: 'envoy-about-clicked' }
+  ],
+  theme: 'auto'
 };

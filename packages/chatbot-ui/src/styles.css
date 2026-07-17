@@ -32,13 +32,73 @@
   --envoy-padding: 16px;
   --envoy-spacing: 12px;
   --envoy-bubble-radius: 8px;
+
+  /* Offset defaults */
+  --envoy-offset-x: 20px;
+  --envoy-offset-y: 20px;
 }
 
 :host *, :host *::before, :host *::after {
   box-sizing: border-box;
 }
 
-/* Chat container overrides */
+/* Dark Mode Variable Overrides */
+.dark {
+  --envoy-primary: var(--envoy-dark-primary, #3b82f6);
+  --envoy-secondary: var(--envoy-dark-secondary, #64748b);
+  --envoy-accent: var(--envoy-dark-accent, #10b981);
+  --envoy-bg: var(--envoy-dark-bg, #020617);
+  --envoy-surface: var(--envoy-dark-surface, #0f172a);
+  --envoy-border: var(--envoy-dark-border, #334155);
+  --envoy-text: var(--envoy-dark-text, #f8fafc);
+  --envoy-muted: var(--envoy-dark-muted, #94a3b8);
+}
+
+/* Chat container positioning overrides */
+.envoy-position-bottom-right {
+  bottom: var(--envoy-offset-y, 20px) !important;
+  right: var(--envoy-offset-x, 20px) !important;
+  top: auto !important;
+  left: auto !important;
+}
+
+.envoy-position-bottom-left {
+  bottom: var(--envoy-offset-y, 20px) !important;
+  left: var(--envoy-offset-x, 20px) !important;
+  top: auto !important;
+  right: auto !important;
+}
+
+.envoy-position-top-right {
+  top: var(--envoy-offset-y, 20px) !important;
+  right: var(--envoy-offset-x, 20px) !important;
+  bottom: auto !important;
+  left: auto !important;
+}
+
+.envoy-position-top-left {
+  top: var(--envoy-offset-y, 20px) !important;
+  left: var(--envoy-offset-x, 20px) !important;
+  bottom: auto !important;
+  right: auto !important;
+}
+
+/* Responsive mobile fullscreen */
+@media (max-width: 640px) {
+  #envoy-chat-window {
+    position: fixed !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    border-radius: 0px !important;
+    margin: 0px !important;
+    z-index: 999999 !important;
+  }
+}
+
 .envoy-theme-font {
   font-family: var(--envoy-font-family) !important;
   font-size: var(--envoy-font-size) !important;
@@ -74,7 +134,35 @@
   50% { opacity: 0; }
 }
 
-/* Spinner Animation Keyframes (standard fallback) */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out forwards;
+}
+
+/* Spinner Animation Keyframes */
 @keyframes spin {
   from {
     transform: rotate(0deg);
@@ -139,5 +227,3 @@
     opacity: 1 !important;
   }
 }
-
-

@@ -23,6 +23,16 @@ export class CSSVariableMapper {
       if (c.successColor) vars['--envoy-success'] = c.successColor;
       if (c.warningColor) vars['--envoy-warning'] = c.warningColor;
       if (c.errorColor) vars['--envoy-error'] = c.errorColor;
+
+      // Dark Mode colors mapping
+      if (c.darkPrimaryColor) vars['--envoy-dark-primary'] = c.darkPrimaryColor;
+      if (c.darkSecondaryColor) vars['--envoy-dark-secondary'] = c.darkSecondaryColor;
+      if (c.darkAccentColor) vars['--envoy-dark-accent'] = c.darkAccentColor;
+      if (c.darkBackgroundColor) vars['--envoy-dark-bg'] = c.darkBackgroundColor;
+      if (c.darkSurfaceColor) vars['--envoy-dark-surface'] = c.darkSurfaceColor;
+      if (c.darkBorderColor) vars['--envoy-dark-border'] = c.darkBorderColor;
+      if (c.darkTextColor) vars['--envoy-dark-text'] = c.darkTextColor;
+      if (c.darkMutedTextColor) vars['--envoy-dark-muted'] = c.darkMutedTextColor;
     }
 
     // Map Typography
@@ -45,6 +55,13 @@ export class CSSVariableMapper {
       if (l.padding) vars['--envoy-padding'] = l.padding;
       if (l.spacing) vars['--envoy-spacing'] = l.spacing;
       if (l.bubbleRadius) vars['--envoy-bubble-radius'] = l.bubbleRadius;
+
+      // Position offsets mapping
+      if (l.position) {
+        const p = l.position;
+        if (p.offsetX !== undefined) vars['--envoy-offset-x'] = `${p.offsetX}px`;
+        if (p.offsetY !== undefined) vars['--envoy-offset-y'] = `${p.offsetY}px`;
+      }
     }
 
     return vars;

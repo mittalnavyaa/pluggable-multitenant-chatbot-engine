@@ -205,7 +205,10 @@ export class MarkdownRenderer {
     escaped = escaped.replace(/\*([^*]+)\*/g, '<em>$1</em>');
     escaped = escaped.replace(/_([^_]+)_/g, '<em>$1</em>');
 
-    // 4. Links: [text](url)
+    // 4. Images: ![alt](url)
+    escaped = escaped.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="max-w-full h-auto rounded-lg my-2 border border-lt-border dark:border-dk-border" />');
+
+    // 5. Links: [text](url)
     escaped = escaped.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-blue-600 dark:text-blue-400 hover:underline font-medium">$1</a>');
 
     return escaped;

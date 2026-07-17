@@ -200,6 +200,14 @@ app.get('/api/v1/products/:productId', (req, res) => {
         successColor:   '#16a34a',
         warningColor:   '#d97706',
         errorColor:     '#dc2626',
+        darkPrimaryColor: '#3b82f6',
+        darkSecondaryColor: '#64748b',
+        darkAccentColor: '#14b8a6',
+        darkBackgroundColor: '#020617',
+        darkSurfaceColor: '#0f172a',
+        darkBorderColor: '#334155',
+        darkTextColor: '#f8fafc',
+        darkMutedTextColor: '#94a3b8',
       },
       typography: {
         fontFamily:      'Inter, system-ui, sans-serif',
@@ -216,6 +224,11 @@ app.get('/api/v1/products/:productId', (req, res) => {
         padding:      '16px',
         spacing:      '12px',
         bubbleRadius: '8px',
+        position: {
+          anchor: 'bottom-right',
+          offsetX: 20,
+          offsetY: 20
+        }
       },
       assets: {
         companyLogo: '',
@@ -231,6 +244,13 @@ app.get('/api/v1/products/:productId', (req, res) => {
         offlineMessage:      'Tensor Assistant is currently offline.',
         errorMessage:        'Something went wrong. Please try again.',
         typingIndicatorText: 'Tensor is thinking...',
+        subtitle:            'Online',
+        onlineStatus:        'online',
+        suggestedQuestions: [
+          'Pricing',
+          'Documentation',
+          'Contact Support'
+        ]
       },
       featureFlags: {
         fileUpload:          true,
@@ -240,6 +260,14 @@ app.get('/api/v1/products/:productId', (req, res) => {
         streamingResponses:  true,
         conversationHistory: true,
       },
+      overflowMenu: [
+        { id: 'restart', label: 'Restart Conversation', enabled: true, actionType: 'restart' },
+        { id: 'clear', label: 'Clear Chat', enabled: true, actionType: 'clear' },
+        { id: 'download', label: 'Download Conversation', enabled: true, actionType: 'download' },
+        { id: 'privacy', label: 'Privacy Policy', enabled: true, actionType: 'url', url: 'https://envoy.com/privacy' },
+        { id: 'about', label: 'About Bot', enabled: true, actionType: 'callback', eventName: 'envoy-about-clicked' }
+      ],
+      theme: 'auto'
     },
     admissions: {
       colors: {
@@ -254,6 +282,14 @@ app.get('/api/v1/products/:productId', (req, res) => {
         successColor:   '#16a34a',
         warningColor:   '#d97706',
         errorColor:     '#dc2626',
+        darkPrimaryColor: '#0d9488',
+        darkSecondaryColor: '#64748b',
+        darkAccentColor: '#f97316',
+        darkBackgroundColor: '#042f2e',
+        darkSurfaceColor: '#115e59',
+        darkBorderColor: '#14b8a6',
+        darkTextColor: '#f0fdfa',
+        darkMutedTextColor: '#99f6e4',
       },
       typography: {
         fontFamily:      'Inter, system-ui, sans-serif',
@@ -270,6 +306,11 @@ app.get('/api/v1/products/:productId', (req, res) => {
         padding:      '16px',
         spacing:      '12px',
         bubbleRadius: '8px',
+        position: {
+          anchor: 'bottom-left',
+          offsetX: 30,
+          offsetY: 30
+        }
       },
       assets: { companyLogo: '', chatAvatar: '', botAvatar: '', launcherIcon: '', headerIcon: '' },
       content: {
@@ -279,11 +320,25 @@ app.get('/api/v1/products/:productId', (req, res) => {
         offlineMessage:      'Admissions Assistant is currently offline.',
         errorMessage:        'Something went wrong. Please try again.',
         typingIndicatorText: 'Admissions is thinking...',
+        subtitle:            'Admissions Desk',
+        onlineStatus:        'online',
+        suggestedQuestions: [
+          'Admissions Requirements',
+          'Tuition & Fees',
+          'Application Deadline'
+        ]
       },
       featureFlags: {
         fileUpload: false, voiceInput: false, suggestedQuestions: true,
         typingAnimation: true, streamingResponses: true, conversationHistory: true,
       },
+      overflowMenu: [
+        { id: 'restart', label: 'Start Over', enabled: true, actionType: 'restart' },
+        { id: 'clear', label: 'Clear History', enabled: true, actionType: 'clear' },
+        { id: 'download', label: 'Export Chat', enabled: true, actionType: 'download' },
+        { id: 'privacy', label: 'Terms & Privacy', enabled: true, actionType: 'url', url: 'https://envoy.com/privacy' }
+      ],
+      theme: 'light'
     },
   };
 

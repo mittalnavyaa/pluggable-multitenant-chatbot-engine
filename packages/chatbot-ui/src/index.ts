@@ -1,19 +1,59 @@
 // packages/chatbot-ui/src/index.ts
 
-import stylesText from './styles.css?raw';
-import { type Message, type BrandingConfig, type WidgetState } from './types';
+import stylesText from './styles.css?inline';
+import { type Message, type BrandingConfig, type WidgetState, type OverflowMenuItemConfig } from './types';
 import { brandingStore } from './branding/branding-store';
 import { CSSVariableMapper } from './branding/css-variable-mapper';
 import { DEFAULT_ENVOY_THEME } from './branding/default-theme';
 import { SSEClient } from './streaming/sse-client';
-import { MarkdownRenderer } from './streaming/markdown-renderer';
 
 import { UIStateMachine } from './ui/ui-state-machine';
-import { TypingIndicator } from './ui/typing-indicator';
 import { ErrorToastController, type ErrorType } from './ui/error-toast';
 import { AutoScrollController } from './ui/auto-scroll';
 import { RetryController } from './ui/retry-controller';
-import { LoadingStateController } from './ui/loading-state';
+
+// Import newly refactored modular presentation components
+import { Launcher } from './components/Launcher';
+import { ChatWindow } from './components/ChatWindow';
+import { Header } from './components/Header';
+import { OverflowMenu } from './components/OverflowMenu';
+import { MessageList } from './components/MessageList';
+import { MessageBubble } from './components/MessageBubble';
+import { SuggestionChips } from './components/SuggestionChips';
+import { ChatInput } from './components/ChatInput';
+import { TypingIndicator } from './components/TypingIndicator';
+
+// Import persistence & export interfaces
+import { type ConversationStorage, LocalStorageConversationStorage } from './persistence/storage';
+import { ExporterRegistry } from './export/exporter';
+
+export interface EnvoyChatbotConfig {
+  productId?: string;
+  botId?: string;
+  apiBase?: string;
+  branding?: Partial<BrandingConfig>;
+  theme?: 'light' | 'dark' | 'auto';
+  position?: {
+    anchor?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+    offsetX?: number;
+    offsetY?: number;
+  };
+  suggestedQuestions?: string[];
+  overflowMenu?: OverflowMenuItemConfig[];
+  storageProvider?: ConversationStorage;
+  callbacks?: {
+    onOpen?: () => void;
+    onClose?: () => void;
+    onConversationStarted?: () => void;
+    onConversationRestarted?: () => void;
+    onConversationCleared?: () => void;
+    onMessageSent?: (text: string) => void;
+    onMessageReceived?: (text: string) => void;
+    onStreamingStarted?: () => void;
+    onStreamingFinished?: (text: string) => void;
+    onError?: (type: string, message: string) => void;
+  };
+}
 
 export class EnvoyChatbot extends HTMLElement {
   private isOpen: boolean = false;
@@ -21,122 +61,232 @@ export class EnvoyChatbot extends HTMLElement {
   private branding: BrandingConfig = { ...DEFAULT_ENVOY_THEME };
   private botId: string = '';
   private apiBase: string = '';
+  private conversationId: string = '';
   private currentStreamInterval: number | null = null;
   private activeSseClient: SSEClient | null = null;
-  private conversationId: string = '';
-
-  // Interactive Response UI State Management properties
+  
+  // Controllers
   private conversationStateMachine = new UIStateMachine();
-  private typingIndicatorController!: TypingIndicator;
-  private errorToastController!: ErrorToastController;
-  private autoScrollController!: AutoScrollController;
   private retryController = new RetryController();
-  private loadingStateController!: LoadingStateController;
-  private notificationsContainerEl!: HTMLDivElement;
+  private autoScrollController!: AutoScrollController;
+  private errorToastController!: ErrorToastController;
+  private storage: ConversationStorage = new LocalStorageConversationStorage();
+  
+  // Dynamic unified configurations
+  private config: EnvoyChatbotConfig = {};
 
   // DOM Elements refs inside Shadow DOM
   private containerEl!: HTMLDivElement;
-  private launcherEl!: HTMLButtonElement;
-  private chatWindowEl!: HTMLDivElement;
-  private messagesContainerEl!: HTMLDivElement;
-  private inputEl!: HTMLTextAreaElement;
-  private sendBtnEl!: HTMLButtonElement;
-  private typingIndicatorEl!: HTMLDivElement;
-  private suggestionsEl!: HTMLDivElement;
-  private uploadBtnEl!: HTMLButtonElement;
-  private voiceBtnEl!: HTMLButtonElement;
+  private notificationsContainerEl!: HTMLDivElement;
+
+  // Refactored presentation components
+  private launcherComponent!: Launcher;
+  private chatWindowComponent!: ChatWindow;
+  private headerComponent!: Header;
+  private overflowMenuComponent!: OverflowMenu;
+  private messageListComponent!: MessageList;
+  private suggestedChipsComponent!: SuggestionChips;
+  private typingIndicatorComponent!: TypingIndicator;
+  private chatInputComponent!: ChatInput;
+
+  // Media Query listener for Auto Theme
+  private themeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  private themeListener = (e: MediaQueryListEvent) => {
+    if (this.getCurrentTheme() === 'auto') {
+      this.applyThemeMode(e.matches ? 'dark' : 'light');
+    }
+  };
 
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
   }
 
-
   static get observedAttributes() {
-    return ['data-bot-id', 'data-api-base'];
+    return [
+      'data-bot-id',
+      'data-api-base',
+      'data-position',
+      'data-theme',
+      'data-welcome-message',
+      'data-primary-color',
+      'data-suggested-questions'
+    ];
   }
 
   attributeChangedCallback(name: string, oldValue: string, newValue: string) {
     if (oldValue === newValue) return;
+
     if (name === 'data-bot-id') {
       this.botId = newValue;
       this.refreshBranding();
     } else if (name === 'data-api-base') {
       this.apiBase = newValue;
       this.refreshBranding();
+    } else if (name === 'data-position') {
+      const parsed = this.parsePositionString(newValue);
+      if (parsed) {
+        this.config.position = parsed;
+        this.applyPosition();
+      }
+    } else if (name === 'data-theme') {
+      if (newValue === 'light' || newValue === 'dark' || newValue === 'auto') {
+        this.config.theme = newValue;
+        this.applyThemeMode(this.getCurrentTheme() === 'auto' ? (this.themeMediaQuery.matches ? 'dark' : 'light') : (newValue as 'light' | 'dark'));
+      }
+    } else if (name === 'data-welcome-message') {
+      if (this.branding.content) {
+        this.branding.content.welcomeMessage = newValue;
+        this.resetConversation(false); // Reload welcome
+      }
+    } else if (name === 'data-primary-color') {
+      if (this.branding.colors) {
+        this.branding.colors.primaryColor = newValue;
+        this.applyThemeStyles();
+      }
+    } else if (name === 'data-suggested-questions') {
+      try {
+        const questions = JSON.parse(newValue);
+        if (Array.isArray(questions)) {
+          this.config.suggestedQuestions = questions;
+          this.applyFeatureFlags();
+        }
+      } catch {
+        const questions = newValue.split(',').map(q => q.trim()).filter(Boolean);
+        this.config.suggestedQuestions = questions;
+        this.applyFeatureFlags();
+      }
     }
+  }
+
+  private parsePositionString(posStr: string) {
+    // Expected formats: "bottom-left" or "{anchor: 'bottom-left', offsetX: 20, offsetY: 20}"
+    if (!posStr) return null;
+    const clean = posStr.trim();
+    if (['bottom-right', 'bottom-left', 'top-right', 'top-left'].includes(clean)) {
+      return { anchor: clean as any };
+    }
+    try {
+      const parsed = JSON.parse(clean.replace(/'/g, '"'));
+      if (parsed && typeof parsed === 'object') {
+        return parsed;
+      }
+    } catch {}
+    return null;
   }
 
   async connectedCallback() {
     this.botId = this.getAttribute('data-bot-id') || '';
     this.apiBase = this.getAttribute('data-api-base') || window.location.origin;
 
-    // Build DOM structure
+    // Load initial parameters from element properties if set prior to mounting
+    const elementTheme = this.getAttribute('data-theme') as any;
+    if (elementTheme) this.config.theme = elementTheme;
+
+    // Build UI DOM structure
     this.renderStructure();
 
-    // Initialize Interactive UI Controller systems
-    this.notificationsContainerEl = this.shadowRoot!.getElementById('envoy-notifications') as HTMLDivElement;
-    this.typingIndicatorController = new TypingIndicator(this.typingIndicatorEl);
-    this.errorToastController = new ErrorToastController(
-      this.notificationsContainerEl,
-      () => this.branding
-    );
-    this.autoScrollController = new AutoScrollController(this.messagesContainerEl);
-
-    const statusDot = this.shadowRoot!.getElementById('envoy-status-dot') as HTMLSpanElement;
-    this.loadingStateController = new LoadingStateController(
-      this.inputEl,
-      this.sendBtnEl,
-      statusDot
-    );
-
-    // Bind state machine listeners
+    // Bind state machine listeners to update loading states and typing status
     this.conversationStateMachine.addListener((state) => {
-      this.loadingStateController.updateState(state);
+      // Manage disable/loading visual state of input elements
+      const isWorking = ['sending', 'connecting', 'waiting', 'reconnecting'].includes(state);
+      this.chatInputComponent.setDisabled(isWorking);
+      
+      // Manage streaming toggle on textinput (Stop Generation trigger)
+      this.chatInputComponent.setStreaming(state === 'streaming');
 
       if (state === 'typing') {
-        this.typingIndicatorController.show();
+        this.typingIndicatorComponent.show();
       } else {
-        this.typingIndicatorController.hide();
+        this.typingIndicatorComponent.hide();
+      }
+
+      // Update status dot visual styles in header
+      const statusDot = this.headerComponent.getStatusDot();
+      if (statusDot) {
+        statusDot.className = 'absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white/20 transition-all duration-300';
+        switch (state) {
+          case 'connecting':
+          case 'reconnecting':
+          case 'sending':
+            statusDot.classList.add('bg-amber-400', 'animate-pulse');
+            statusDot.setAttribute('title', 'Connecting...');
+            break;
+          case 'waiting':
+          case 'typing':
+          case 'streaming':
+            statusDot.classList.add('bg-blue-400', 'animate-pulse');
+            statusDot.setAttribute('title', 'Responding...');
+            break;
+          case 'failed':
+            statusDot.classList.add('bg-red-500');
+            statusDot.setAttribute('title', 'Connection error');
+            break;
+          case 'idle':
+          case 'completed':
+          case 'cancelled':
+          default:
+            if (this.branding.content.onlineStatus === 'offline' || this.branding.content.onlineStatus === false) {
+              statusDot.classList.add('bg-slate-400');
+              statusDot.setAttribute('title', 'Offline');
+            } else {
+              statusDot.classList.add('bg-green-400', 'animate-pulse');
+              statusDot.setAttribute('title', 'Online');
+            }
+            break;
+        }
       }
     });
 
-    // Setup store listener
+    // Register listener on store changes
     brandingStore.addListener(this.onBrandingUpdate.bind(this));
+
+    // Register system color updates
+    this.themeMediaQuery.addEventListener('change', this.themeListener);
 
     // Initial load
     this.refreshBranding();
-
-    // Setup event listeners
-    this.setupListeners();
   }
-
 
   disconnectedCallback() {
     this.cleanup();
+    this.themeMediaQuery.removeEventListener('change', this.themeListener);
   }
 
   // ------------------------------------------------------------------ #
-  //  Public Javascript APIs                                             #
+  //  Public Javascript SDK Control APIs                                #
   // ------------------------------------------------------------------ #
+
+  public setConfiguration(config: EnvoyChatbotConfig) {
+    this.config = { ...this.config, ...config };
+    
+    if (config.botId) this.botId = config.botId;
+    if (config.apiBase) this.apiBase = config.apiBase;
+    if (config.storageProvider) this.storage = config.storageProvider;
+    
+    this.refreshBranding(true);
+  }
+
+  public getConfiguration(): EnvoyChatbotConfig {
+    return this.config;
+  }
 
   public open() {
     if (this.isOpen) return;
     this.isOpen = true;
-    this.containerEl.classList.add('envoy-open');
-    this.chatWindowEl.classList.remove('hidden');
-    this.chatWindowEl.classList.add('flex');
-    this.inputEl.focus();
-    this.dispatchEvent(new CustomEvent('envoy-chat-opened', { bubbles: true, composed: true }));
+    this.launcherComponent.setOpenState(true);
+    this.chatWindowComponent.setOpen(true);
+    this.chatInputComponent.focus();
+    this.emitSDKEvent('envoy-chat-opened');
   }
 
   public close() {
     if (!this.isOpen) return;
     this.isOpen = false;
-    this.containerEl.classList.remove('envoy-open');
-    this.chatWindowEl.classList.add('hidden');
-    this.chatWindowEl.classList.remove('flex');
-    this.dispatchEvent(new CustomEvent('envoy-chat-closed', { bubbles: true, composed: true }));
+    this.launcherComponent.setOpenState(false);
+    this.chatWindowComponent.setOpen(false);
+    this.overflowMenuComponent.close();
+    this.emitSDKEvent('envoy-chat-closed');
   }
 
   public toggle() {
@@ -147,84 +297,96 @@ export class EnvoyChatbot extends HTMLElement {
     }
   }
 
-  public resetConversation() {
+  public restart() {
+    this.resetConversation(true);
+  }
+
+  public clear() {
     this.messages = [];
-    this.messagesContainerEl.innerHTML = '';
+    this.messageListComponent.clear();
+    this.storage.clearConversation(this.botId);
+    this.emitSDKEvent('envoy-conversation-cleared');
+  }
+
+  public resetConversation(userInitiated = true) {
+    this.messages = [];
+    this.messageListComponent.clear();
     
-    if (this.branding.featureFlags.conversationHistory) {
-      localStorage.removeItem(`envoy-chat-history-${this.botId}`);
-      localStorage.removeItem(`envoy-chat-conv-id-${this.botId}`);
-    }
+    // Clear persistence
+    this.storage.clearConversation(this.botId);
+    
+    // Reset conversation ID
     this.conversationId = '';
 
+    // Disconnect active streaming channels
     if (this.activeSseClient) {
       this.activeSseClient.disconnect();
       this.activeSseClient = null;
     }
 
-    this.addWelcomeMessage();
     if (this.currentStreamInterval) {
       clearInterval(this.currentStreamInterval);
       this.currentStreamInterval = null;
     }
+
+    // Add welcome message
+    this.addWelcomeMessage();
     
     this.conversationStateMachine.transition({ type: 'RESET' });
     this.retryController.clear();
     if (this.errorToastController) {
       this.errorToastController.dismiss();
     }
-  }
 
+    if (userInitiated) {
+      this.emitSDKEvent('envoy-conversation-restarted');
+    }
+  }
 
   public async sendMessage(text: string, isRetry = false) {
     const currentState = this.conversationStateMachine.getState();
     const isWorking = ['sending', 'connecting', 'waiting', 'typing', 'streaming', 'reconnecting'].includes(currentState);
     if (!text.trim() || isWorking) return;
     
-    // Clear any existing error toast when sending a message
     if (this.errorToastController) {
       this.errorToastController.dismiss();
     }
 
     if (!isRetry) {
-      // Cache the prompt for potential future retries
       this.retryController.saveLastPrompt(text);
 
-      // Append User Message
       const userMsg: Message = {
         id: `user-${Date.now()}`,
         sender: 'user',
         text: text,
         timestamp: new Date().toISOString()
       };
+      
+      const isFirstMessage = this.messages.length <= 1; // Only welcome exists
       this.messages.push(userMsg);
-      this.appendMessageDOM(userMsg);
-      if (this.autoScrollController) {
-        this.autoScrollController.forceScroll();
+      this.messageListComponent.appendMessage(userMsg, this.branding.colors.primaryColor || '#2563eb', this.handleMessageAction.bind(this));
+      
+      if (isFirstMessage) {
+        this.emitSDKEvent('envoy-conversation-started');
       }
+      this.autoScrollController.forceScroll();
     }
 
-    // Save history if enabled
+    // Save history if feature flag enabled
     if (this.branding.featureFlags.conversationHistory) {
-      this.saveHistory();
+      this.storage.saveConversation(this.botId, this.messages, this.getOrCreateConversationId());
     }
 
-    // Hide suggestions once user has interacted
-    this.suggestionsEl.classList.add('hidden');
+    // Hide quick suggestion chips on interaction
+    this.suggestedChipsComponent.hide();
 
-    this.dispatchEvent(new CustomEvent('envoy-message-sent', { 
-      detail: { text }, 
-      bubbles: true, 
-      composed: true 
-    }));
+    this.emitSDKEvent('envoy-message-sent', text);
 
-    // Trigger state machine transition: SEND
     this.conversationStateMachine.transition({ type: 'SEND' });
 
-    // Trigger responses
+    // Stream/fetch response
     await this.generateBotResponse(text, isRetry);
   }
-
 
   public destroy() {
     this.cleanup();
@@ -232,297 +394,177 @@ export class EnvoyChatbot extends HTMLElement {
   }
 
   // ------------------------------------------------------------------ #
-  //  Internal Layout & Logic                                           #
+  //  Internal Setup and Orchestration                                  #
   // ------------------------------------------------------------------ #
-
-  private onBrandingUpdate(config: BrandingConfig, _state: WidgetState) {
-    this.branding = config;
-
-    this.applyTheme();
-    this.applyFeatureFlags();
-  }
-
-  private async refreshBranding() {
-    if (this.botId) {
-      await brandingStore.loadBranding(this.botId, this.apiBase);
-    }
-  }
 
   private renderStructure() {
     const root = this.shadowRoot!;
     
-    // Inject Styles text directly into Shadow DOM
+    // Inject styles
     const style = document.createElement('style');
     style.textContent = stylesText;
     root.appendChild(style);
 
-    // Host styling variables setup
+    // Host position container
     this.containerEl = document.createElement('div');
-    this.containerEl.className = 'fixed bottom-5 right-5 z-[9999] font-sans text-sm select-none antialiased envoy-theme-font';
-    this.containerEl.innerHTML = `
-      <!-- Floating Launcher Button -->
-      <button type="button" id="envoy-launcher" class="w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer text-white focus:outline-none focus:ring-4 focus:ring-blue-300" aria-label="Open Chatbot Window">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-        </svg>
-      </button>
+    this.containerEl.id = 'envoy-widget-container';
+    this.containerEl.className = 'fixed z-[9999] font-sans text-sm select-none antialiased envoy-theme-font envoy-position-bottom-right';
+    
+    // Create UI sub-components
+    // 1. Launcher button
+    this.launcherComponent = new Launcher(this.containerEl, () => this.toggle());
 
-      <!-- Expandable Chat Window -->
-      <div id="envoy-chat-window" class="hidden absolute bottom-16 right-0 flex-col overflow-hidden transition-all duration-200 bg-white dark:bg-dk-surface border border-lt-border dark:border-dk-border shadow-2xl">
-        <!-- Header -->
-        <header id="envoy-header" class="px-4 py-3 flex items-center justify-between text-white shadow-md">
-          <div class="flex items-center gap-2">
-            <span id="envoy-status-dot" class="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse"></span>
-            <span id="envoy-title" class="font-semibold truncate max-w-[200px]">${this.branding.content.widgetTitle}</span>
-          </div>
-          <div class="flex items-center gap-1">
-            <button type="button" id="envoy-reset-btn" class="p-1 rounded hover:bg-white/10 text-white cursor-pointer" title="Reset conversation">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M23 4v6h-6M1 20v-6h6"></path>
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-              </svg>
-            </button>
-            <button type="button" id="envoy-close-btn" class="p-1 rounded hover:bg-white/10 text-white cursor-pointer" aria-label="Close Chat Window">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-          </div>
-        </header>
+    // 2. Chat dialog container
+    this.chatWindowComponent = new ChatWindow(this.containerEl);
+    const win = this.chatWindowComponent.getElement();
 
-        <!-- Notification Toast Container -->
-        <div id="envoy-notifications" class="absolute top-14 left-4 right-4 z-[1000] pointer-events-none flex flex-col gap-2"></div>
+    // 3. Header bar
+    this.headerComponent = new Header(win, {
+      onCloseClick: () => this.close(),
+      onRestartClick: () => this.restart(),
+      onOverflowToggle: () => this.overflowMenuComponent.toggle()
+    });
 
-        <!-- Message Area -->
+    // 4. Overflow Dropdown menu
+    this.overflowMenuComponent = new OverflowMenu(win, (item) => this.handleOverflowItemClick(item));
 
-        <div id="envoy-messages" class="flex-1 p-4 overflow-y-auto bg-lt-bg dark:bg-dk-bg flex flex-col gap-3 envoy-messages-container">
-          <!-- Dynamically populated -->
-        </div>
+    // 5. Notifications Area
+    this.notificationsContainerEl = document.createElement('div');
+    this.notificationsContainerEl.id = 'envoy-notifications';
+    this.notificationsContainerEl.className = 'absolute top-14 left-4 right-4 z-[1000] pointer-events-none flex flex-col gap-2';
+    win.appendChild(this.notificationsContainerEl);
+    
+    this.errorToastController = new ErrorToastController(
+      this.notificationsContainerEl,
+      () => this.branding
+    );
 
-        <!-- Suggested Questions / Quick Actions -->
-        <div id="envoy-suggestions" class="hidden px-4 py-2 bg-lt-bg dark:bg-dk-bg flex flex-col gap-1.5 border-t border-lt-border/50 dark:border-dk-border/50">
-          <!-- Dynamically populated suggestions -->
-        </div>
+    // 6. Messages List area
+    this.messageListComponent = new MessageList(win);
+    this.autoScrollController = new AutoScrollController(this.messageListComponent.getElement());
 
-        <!-- Typing Indicator -->
-        <div id="envoy-typing" class="hidden px-4 py-1 text-xs text-lt-muted dark:text-dk-muted bg-lt-bg dark:bg-dk-bg flex items-center gap-1.5">
-          <span class="flex gap-1 items-center">
-            <span class="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500 animate-bounce" style="animation-delay: 0ms"></span>
-            <span class="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500 animate-bounce" style="animation-delay: 150ms"></span>
-            <span class="w-1.5 h-1.5 rounded-full bg-slate-400 dark:bg-slate-500 animate-bounce" style="animation-delay: 300ms"></span>
-          </span>
-          <span id="envoy-typing-text">${this.branding.content.typingIndicatorText}</span>
-        </div>
+    // 7. Suggestions quick action chips
+    this.suggestedChipsComponent = new SuggestionChips(win, (text) => this.sendMessage(text));
 
-        <!-- Input Area -->
-        <form id="envoy-input-form" class="p-3 border-t border-lt-border dark:border-dk-border bg-white dark:bg-dk-surface flex gap-1.5 items-center">
-          <!-- Optional attachment button -->
-          <button type="button" id="envoy-upload-btn" class="hidden p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="Upload File">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
-            </svg>
-          </button>
-          
-          <textarea id="envoy-input" placeholder="Type a message..." rows="1" class="flex-1 px-3 py-2 bg-lt-bg dark:bg-dk-bg text-lt-text dark:text-dk-text border border-lt-border dark:border-dk-border rounded-lg resize-none outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 max-h-[80px]" aria-label="Chat input field"></textarea>
-          
-          <!-- Optional voice input button -->
-          <button type="button" id="envoy-voice-btn" class="hidden p-2 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500" aria-label="Voice input microphone">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-              <line x1="12" y1="19" x2="12" y2="22"></line>
-            </svg>
-          </button>
+    // 8. Typing indicator
+    this.typingIndicatorComponent = new TypingIndicator(win);
 
-          <button type="submit" id="envoy-send-btn" class="p-2 rounded-lg flex items-center justify-center text-white cursor-pointer hover:opacity-90 transition-opacity focus:outline-none focus:ring-2 focus:ring-offset-2" aria-label="Send Message">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="22" y1="2" x2="11" y2="13"></line>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-            </svg>
-          </button>
-        </form>
-      </div>
-    `;
+    // 9. Form input controls
+    this.chatInputComponent = new ChatInput(win, {
+      onSend: (text) => this.sendMessage(text),
+      onStop: () => this.stopGeneration()
+    });
 
     root.appendChild(this.containerEl);
-
-    // Bind element selectors
-    this.launcherEl = root.getElementById('envoy-launcher') as HTMLButtonElement;
-    this.chatWindowEl = root.getElementById('envoy-chat-window') as HTMLDivElement;
-    this.messagesContainerEl = root.getElementById('envoy-messages') as HTMLDivElement;
-    this.inputEl = root.getElementById('envoy-input') as HTMLTextAreaElement;
-    this.sendBtnEl = root.getElementById('envoy-send-btn') as HTMLButtonElement;
-    this.typingIndicatorEl = root.getElementById('envoy-typing') as HTMLDivElement;
-    this.suggestionsEl = root.getElementById('envoy-suggestions') as HTMLDivElement;
-    this.uploadBtnEl = root.getElementById('envoy-upload-btn') as HTMLButtonElement;
-    this.voiceBtnEl = root.getElementById('envoy-voice-btn') as HTMLButtonElement;
   }
 
-  private applyTheme() {
+  private onBrandingUpdate(config: BrandingConfig, _state: WidgetState) {
+    // Merge backend branding config with SDK properties config if defined
+    let merged = { ...config };
+    if (this.config.branding) {
+      merged = {
+        ...merged,
+        ...this.config.branding,
+        colors: { ...merged.colors, ...this.config.branding.colors },
+        typography: { ...merged.typography, ...this.config.branding.typography },
+        layout: { ...merged.layout, ...this.config.branding.layout },
+        assets: { ...merged.assets, ...this.config.branding.assets },
+        content: { ...merged.content, ...this.config.branding.content },
+        featureFlags: { ...merged.featureFlags, ...this.config.branding.featureFlags }
+      };
+    }
+
+    this.branding = merged;
+
+    // Apply configurations to visual items
+    this.applyThemeStyles();
+    this.applyPosition();
+    const theme = this.getCurrentTheme();
+    this.applyThemeMode(theme === 'auto' ? (this.themeMediaQuery.matches ? 'dark' : 'light') : (theme as 'light' | 'dark'));
+    this.applyFeatureFlags();
+  }
+
+  private async refreshBranding(force = false) {
+    if (this.botId) {
+      await brandingStore.loadBranding(this.botId, this.apiBase, force);
+    }
+  }
+
+  private applyThemeStyles() {
     const cssVars = CSSVariableMapper.mapToCSS(this.branding);
     for (const [key, value] of Object.entries(cssVars)) {
       this.style.setProperty(key, value);
     }
 
-    // Set layout sizes on chat window container dynamically
-    this.chatWindowEl.style.width = this.branding.layout.chatWidth || '380px';
-    this.chatWindowEl.style.height = this.branding.layout.chatHeight || '520px';
-    this.chatWindowEl.style.borderRadius = this.branding.layout.borderRadius || '12px';
+    // Pass styling rules to widgets
+    this.chatWindowComponent.updateLayout(this.branding);
+    this.launcherComponent.updateBranding(this.branding.colors.primaryColor || '#2563eb', this.branding.assets.launcherIcon);
+    this.headerComponent.updateBranding(this.branding);
+    this.chatInputComponent.updateBranding(this.branding);
+    this.typingIndicatorComponent.updateTheme(this.branding);
+  }
 
-    this.launcherEl.style.backgroundColor = this.branding.colors.primaryColor || '#2563eb';
-    this.sendBtnEl.style.backgroundColor = this.branding.colors.primaryColor || '#2563eb';
+  private applyPosition() {
+    const pos = this.config.position || this.branding.layout.position || {};
+    const anchor = pos.anchor || 'bottom-right';
+    
+    // Clear class lists
+    this.containerEl.classList.remove(
+      'envoy-position-bottom-right',
+      'envoy-position-bottom-left',
+      'envoy-position-top-right',
+      'envoy-position-top-left'
+    );
+    this.containerEl.classList.add(`envoy-position-${anchor}`);
 
-    const header = this.shadowRoot!.getElementById('envoy-header');
-    if (header) {
-      header.style.backgroundColor = this.branding.colors.primaryColor || '#2563eb';
+    if (pos.offsetX !== undefined) {
+      this.style.setProperty('--envoy-offset-x', `${pos.offsetX}px`);
+    } else {
+      this.style.removeProperty('--envoy-offset-x');
     }
 
-    const titleEl = this.shadowRoot!.getElementById('envoy-title');
-    if (titleEl) {
-      titleEl.textContent = this.branding.content.widgetTitle || 'Envoy AI Agent';
+    if (pos.offsetY !== undefined) {
+      this.style.setProperty('--envoy-offset-y', `${pos.offsetY}px`);
+    } else {
+      this.style.removeProperty('--envoy-offset-y');
     }
 
-    const placeholder = this.branding.content.placeholderText || 'Type a message...';
-    this.inputEl.setAttribute('placeholder', placeholder);
+    this.chatWindowComponent.updateLayout(this.branding);
+  }
 
-    const typingTextEl = this.shadowRoot!.getElementById('envoy-typing-text');
-    if (typingTextEl) {
-      typingTextEl.textContent = this.branding.content.typingIndicatorText || 'Agent is typing...';
+  private applyThemeMode(mode: 'light' | 'dark') {
+    if (mode === 'dark') {
+      this.containerEl.classList.add('dark');
+    } else {
+      this.containerEl.classList.remove('dark');
     }
+  }
+
+  private getCurrentTheme(): 'light' | 'dark' | 'auto' {
+    return this.config.theme || this.branding.theme || 'auto';
   }
 
   private applyFeatureFlags() {
     const flags = this.branding.featureFlags;
 
-    // File Upload Flag toggle
-    if (flags.fileUpload) {
-      this.uploadBtnEl.classList.remove('hidden');
+    // Suggested Questions
+    const questions = this.config.suggestedQuestions || this.branding.content.suggestedQuestions || [];
+    if (flags.suggestedQuestions && this.messages.length <= 1 && questions.length > 0) {
+      this.suggestedChipsComponent.setQuestions(questions, this.branding.colors.primaryColor || '#2563eb');
     } else {
-      this.uploadBtnEl.classList.add('hidden');
+      this.suggestedChipsComponent.hide();
     }
 
-    // Voice Input Flag toggle
-    if (flags.voiceInput) {
-      this.voiceBtnEl.classList.remove('hidden');
-    } else {
-      this.voiceBtnEl.classList.add('hidden');
-    }
+    // Overflow Menu config update
+    const menuItems = this.config.overflowMenu || this.branding.overflowMenu || [];
+    this.overflowMenuComponent.setConfig(menuItems);
 
-    // Render/Hide Suggested questions
-    if (flags.suggestedQuestions && this.messages.length <= 1) {
-      this.renderSuggestions();
-    } else {
-      this.suggestionsEl.classList.add('hidden');
-    }
-
-    // Load History if enabled
-    if (flags.conversationHistory && this.messages.length <= 1) {
+    // Dynamic History loading
+    if (flags.conversationHistory && this.messages.length === 0) {
       this.loadHistory();
+    } else if (this.messages.length === 0) {
+      this.addWelcomeMessage();
     }
-  }
-
-  private renderSuggestions() {
-    this.suggestionsEl.innerHTML = '';
-    const prompts = [
-      'How to sync chatbot brain?',
-      'Can I change colors & branding?',
-      'Tell me about file indexing'
-    ];
-
-    prompts.forEach(text => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'envoy-suggest-btn text-left px-3 py-1.5 rounded-lg border border-lt-border dark:border-dk-border bg-white dark:bg-dk-surface text-lt-text dark:text-dk-text text-xs hover:bg-slate-50 cursor-pointer transition-all border-l-4';
-      btn.style.borderLeftColor = this.branding.colors.primaryColor || '#2563eb';
-      btn.textContent = text;
-      
-      btn.addEventListener('click', () => {
-        this.inputEl.value = text;
-        this.sendMessage(text);
-        this.inputEl.value = '';
-      });
-
-      this.suggestionsEl.appendChild(btn);
-    });
-
-    this.suggestionsEl.classList.remove('hidden');
-  }
-
-  private loadHistory() {
-    try {
-      const stored = localStorage.getItem(`envoy-chat-history-${this.botId}`);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          this.messages = parsed;
-          this.messagesContainerEl.innerHTML = '';
-          this.messages.forEach(msg => this.appendMessageDOM(msg));
-          this.scrollToBottom();
-          this.suggestionsEl.classList.add('hidden');
-        }
-      }
-    } catch (err) {
-      console.warn('[envoy-history] Failed loading chat history.', err);
-    }
-  }
-
-  private saveHistory() {
-    try {
-      localStorage.setItem(`envoy-chat-history-${this.botId}`, JSON.stringify(this.messages));
-    } catch (err) {
-      console.warn('[envoy-history] Failed saving chat history.', err);
-    }
-  }
-
-  private setupListeners() {
-    // Toggle opened/closed window triggers
-    this.launcherEl.addEventListener('click', () => this.toggle());
-    
-    const closeBtn = this.shadowRoot!.getElementById('envoy-close-btn');
-    if (closeBtn) {
-      closeBtn.addEventListener('click', () => this.close());
-    }
-
-    const resetBtn = this.shadowRoot!.getElementById('envoy-reset-btn');
-    if (resetBtn) {
-      resetBtn.addEventListener('click', () => this.resetConversation());
-    }
-
-    // Submit user forms input
-    const form = this.shadowRoot!.getElementById('envoy-input-form');
-    if (form) {
-      form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const text = this.inputEl.value.trim();
-        if (text) {
-          this.sendMessage(text);
-          this.inputEl.value = '';
-        }
-      });
-    }
-
-    // Enter submits message, shift+enter inserts newlines
-    this.inputEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        const text = this.inputEl.value.trim();
-        if (text) {
-          this.sendMessage(text);
-          this.inputEl.value = '';
-        }
-      }
-    });
-
-    // File Upload Action click alert (Mock)
-    this.uploadBtnEl.addEventListener('click', () => {
-      alert('File upload initiated. Envoy chatbot supports indexing local PDFs and text files.');
-    });
-
-    // Voice Input Action click alert (Mock)
-    this.voiceBtnEl.addEventListener('click', () => {
-      alert('Microphone input activated. Speak to submit your prompt.');
-    });
   }
 
   private addWelcomeMessage() {
@@ -533,68 +575,148 @@ export class EnvoyChatbot extends HTMLElement {
       timestamp: new Date().toISOString()
     };
     this.messages.push(welcomeMsg);
-    this.appendMessageDOM(welcomeMsg);
+    this.messageListComponent.appendMessage(welcomeMsg, this.branding.colors.primaryColor || '#2563eb', this.handleMessageAction.bind(this));
   }
 
-  private appendMessageDOM(msg: Message) {
-    const isBot = msg.sender === 'bot';
-    
-    // Create wrapper message bubble
-    const bubble = document.createElement('div');
-    bubble.className = `max-w-[80%] px-3 py-2 rounded-lg text-xs leading-relaxed break-words ${
-      isBot 
-        ? 'bg-white dark:bg-dk-surface border border-lt-border dark:border-dk-border text-lt-text dark:text-dk-text self-start rounded-bl-none shadow-sm'
-        : 'text-white self-end rounded-br-none shadow-md'
-    }`;
-    
-    if (!isBot) {
-      bubble.style.backgroundColor = this.branding.colors.primaryColor || '#2563eb';
+  private loadHistory() {
+    const data = this.storage.loadConversation(this.botId);
+    if (data && data.messages.length > 0) {
+      this.conversationId = data.conversationId;
+      this.messages = data.messages;
+      this.messageListComponent.clear();
+      this.messages.forEach(msg => {
+        this.messageListComponent.appendMessage(msg, this.branding.colors.primaryColor || '#2563eb', this.handleMessageAction.bind(this));
+      });
+      this.autoScrollController.forceScroll();
+      this.suggestedChipsComponent.hide();
+    } else {
+      this.addWelcomeMessage();
     }
+  }
 
-    bubble.setAttribute('id', `msg-${msg.id}`);
-    
-    if (isBot) {
-      bubble.innerHTML = MarkdownRenderer.render(msg.text);
-      if (msg.isStreaming) {
-        bubble.classList.add('envoy-streaming');
+  private handleMessageAction(action: 'copy' | 'regenerate' | 'thumbs-up' | 'thumbs-down', messageId: string) {
+    if (action === 'copy') {
+      const msg = this.messages.find(m => m.id === messageId);
+      if (msg) {
+        navigator.clipboard.writeText(msg.text).catch(err => {
+          console.error('[envoy-chatbot] Clipboard write failed:', err);
+        });
+      }
+    } else if (action === 'regenerate') {
+      const msgIdx = this.messages.findIndex(m => m.id === messageId);
+      if (msgIdx >= 0) {
+        // Find preceding user prompt
+        let userPrompt = '';
+        for (let i = msgIdx - 1; i >= 0; i--) {
+          if (this.messages[i].sender === 'user') {
+            userPrompt = this.messages[i].text;
+            break;
+          }
+        }
+        if (userPrompt) {
+          // Splice conversation to strip the bot response
+          this.messages.splice(msgIdx);
+          this.messageListComponent.clear();
+          this.messages.forEach(msg => {
+            this.messageListComponent.appendMessage(msg, this.branding.colors.primaryColor || '#2563eb', this.handleMessageAction.bind(this));
+          });
+          this.autoScrollController.forceScroll();
+
+          this.conversationStateMachine.transition({ type: 'SEND' });
+          this.generateBotResponse(userPrompt, true);
+        }
       }
     } else {
-      bubble.textContent = msg.text;
+      // Emit Thumbs Up / Thumbs Down feedback to host application
+      this.emitSDKEvent('envoy-feedback', { messageId, rating: action });
     }
-    
-    // Append container
-    this.messagesContainerEl.appendChild(bubble);
   }
 
-  private mapErrorToType(errorMsg: string, streamSucceeded: boolean): ErrorType {
-    if (streamSucceeded) {
-      return 'interrupted';
+  private handleOverflowItemClick(item: OverflowMenuItemConfig) {
+    if (item.actionType === 'restart') {
+      this.restart();
+    } else if (item.actionType === 'clear') {
+      this.clear();
+    } else if (item.actionType === 'download') {
+      this.downloadConversation(item.id);
+    } else if (item.actionType === 'url') {
+      if (item.url) {
+        window.open(item.url, '_blank', 'noopener,noreferrer');
+      }
+    } else if (item.actionType === 'callback') {
+      // Trigger host callback custom event
+      this.emitSDKEvent(item.eventName || `envoy-${item.id}-clicked`, item);
     }
-    const msg = errorMsg.toLowerCase();
-    if (msg.includes('timeout') || msg.includes('time out')) {
-      return 'timeout';
+  }
+
+  private downloadConversation(formatId: string) {
+    const format = formatId === 'download' ? 'txt' : formatId;
+    let exporter;
+    try {
+      exporter = ExporterRegistry.getExporter(format);
+    } catch {
+      exporter = ExporterRegistry.getExporter('txt');
     }
-    if (msg.includes('401') || msg.includes('403') || msg.includes('auth') || msg.includes('unauthorized')) {
-      return 'auth';
+
+    const output = exporter.export(this.messages);
+    const blob = new Blob([output], { type: exporter.getMimeType() });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `conversation-${this.botId || 'history'}.${exporter.getFileExtension()}`;
+    a.click();
+    
+    URL.revokeObjectURL(url);
+  }
+
+  private stopGeneration() {
+    if (this.activeSseClient) {
+      this.activeSseClient.disconnect();
+      this.activeSseClient = null;
     }
-    if (msg.includes('502') || msg.includes('503') || msg.includes('504') || msg.includes('unavailable')) {
-      return 'unavailable';
+    this.conversationStateMachine.transition({ type: 'CANCEL_STREAM' });
+    this.emitSDKEvent('envoy-chat-closed'); // Also closes indicator, triggers completion hooks
+  }
+
+  private emitSDKEvent(name: string, detail?: any) {
+    // Dispatch custom event
+    this.dispatchEvent(new CustomEvent(name, { bubbles: true, composed: true, detail }));
+    
+    // Call property callbacks if configured
+    const cbName = this.mapEventToCallbackName(name);
+    if (this.config.callbacks && (this.config.callbacks as any)[cbName]) {
+      try {
+        (this.config.callbacks as any)[cbName](detail);
+      } catch (err) {
+        console.error(`[envoy-chatbot] Callback ${cbName} error:`, err);
+      }
     }
-    if (msg.includes('network') || msg.includes('fetch') || msg.includes('failed to fetch') || msg.includes('typeerror')) {
-      return 'network';
-    }
-    return 'unexpected';
+  }
+
+  private mapEventToCallbackName(name: string): string {
+    const mapping: Record<string, string> = {
+      'envoy-chat-opened': 'onOpen',
+      'envoy-chat-closed': 'onClose',
+      'envoy-conversation-started': 'onConversationStarted',
+      'envoy-conversation-restarted': 'onConversationRestarted',
+      'envoy-conversation-cleared': 'onConversationCleared',
+      'envoy-message-sent': 'onMessageSent',
+      'envoy-message-received': 'onMessageReceived',
+      'envoy-streaming-started': 'onStreamingStarted',
+      'envoy-streaming-finished': 'onStreamingFinished',
+      'envoy-error': 'onError'
+    };
+    return mapping[name] || '';
   }
 
   private async generateBotResponse(userPrompt: string, isRetry = false) {
-    // Transition UI State: CONNECT (or RECONNECT if retrying from fail/reconnect)
     if (isRetry) {
       this.conversationStateMachine.transition({ type: 'RECONNECT' });
     } else {
       this.conversationStateMachine.transition({ type: 'CONNECT' });
     }
 
-    // Disconnect any existing active client
     if (this.activeSseClient) {
       this.activeSseClient.disconnect();
       this.activeSseClient = null;
@@ -605,14 +727,11 @@ export class EnvoyChatbot extends HTMLElement {
       this.currentStreamInterval = null;
     }
 
-    // Move to waiting / typing state
     this.conversationStateMachine.transition({ type: 'CONNECTED' });
     if (this.branding.featureFlags.typingAnimation) {
       this.conversationStateMachine.transition({ type: 'SHOW_TYPING' });
     }
-    if (this.autoScrollController) {
-      this.autoScrollController.scroll();
-    }
+    this.autoScrollController.scroll();
 
     let streamSucceeded = false;
 
@@ -627,23 +746,24 @@ export class EnvoyChatbot extends HTMLElement {
         };
 
         let bubbleAppended = false;
-        let bubble: HTMLDivElement | null = null;
+        let bubble: MessageBubble | null = null;
 
         this.activeSseClient = new SSEClient({
           apiBase: this.apiBase,
           botId: this.botId,
           prompt: userPrompt,
-          onStatusChange: (status) => {
+          onStatusChange: (status, errorMsg) => {
             if (status === 'streaming') {
               this.conversationStateMachine.transition({ type: 'RECEIVE_TOKEN' });
+              this.emitSDKEvent('envoy-streaming-started');
             } else if (status === 'completed') {
               this.conversationStateMachine.transition({ type: 'COMPLETE_STREAM' });
               if (botMsg.isStreaming) {
                 botMsg.isStreaming = false;
-                if (bubble) {
-                  bubble.classList.remove('envoy-streaming');
-                }
+                if (bubble) bubble.setStreaming(false);
               }
+            } else if (status === 'failed') {
+              this.conversationStateMachine.transition({ type: 'FAIL_STREAM', error: errorMsg || 'Stream error' });
             }
           },
           onToken: (token) => {
@@ -653,65 +773,60 @@ export class EnvoyChatbot extends HTMLElement {
             if (!bubbleAppended) {
               bubbleAppended = true;
               this.messages.push(botMsg);
-              this.appendMessageDOM(botMsg);
-              bubble = this.shadowRoot!.getElementById(`msg-${botMsg.id}`) as HTMLDivElement;
+              // Append using the MessageList component
+              bubble = this.messageListComponent.appendMessage(botMsg, this.branding.colors.primaryColor || '#2563eb', this.handleMessageAction.bind(this));
             }
             botMsg.text += token;
             if (bubble) {
-              bubble.innerHTML = MarkdownRenderer.render(botMsg.text);
+              bubble.updateText(botMsg.text);
             }
-            if (this.autoScrollController) {
-              this.autoScrollController.scroll();
-            }
+            this.autoScrollController.scroll();
           },
           onComplete: () => {
             this.activeSseClient = null;
             this.conversationStateMachine.transition({ type: 'COMPLETE_STREAM' });
+            
             if (this.branding.featureFlags.conversationHistory) {
-              this.saveHistory();
+              this.storage.saveConversation(this.botId, this.messages, this.getOrCreateConversationId());
             }
-            this.dispatchEvent(new CustomEvent('envoy-message-received', {
-              detail: { text: botMsg.text },
-              bubbles: true,
-              composed: true
-            }));
+
+            this.emitSDKEvent('envoy-message-received', botMsg.text);
+            this.emitSDKEvent('envoy-streaming-finished', botMsg.text);
           },
           onError: (errorMsg) => {
             this.activeSseClient = null;
             console.error('[envoy-chatbot] SSE Streaming error:', errorMsg);
 
-            // Transition UI state to failed
             this.conversationStateMachine.transition({ type: 'FAIL_STREAM', error: errorMsg });
+            this.emitSDKEvent('envoy-error', { type: 'streaming', message: errorMsg });
 
-            // Display non-blocking error toast with a retry trigger
             const errorType = this.mapErrorToType(errorMsg, streamSucceeded);
             this.errorToastController.show(errorType, () => {
               this.sendMessage(userPrompt, true);
             });
 
-            // If some tokens were streamed, clean up stream indicator
             if (streamSucceeded && bubble) {
               botMsg.isStreaming = false;
-              bubble.classList.remove('envoy-streaming');
+              bubble.setStreaming(false);
             }
-            if (this.autoScrollController) {
-              this.autoScrollController.scroll();
-            }
+            this.autoScrollController.scroll();
           }
         });
 
         await this.activeSseClient.connect();
         return;
       } catch (err: any) {
-        console.warn('[envoy-chatbot] Failed establishing stream, falling back.', err);
-        // Transition to failed state and show toast
-        this.conversationStateMachine.transition({ type: 'FAIL_STREAM', error: err.message || 'Connection failed' });
+        console.warn('[envoy-chatbot] SSE connection establishment failed, retrying synchronously.', err);
+        this.conversationStateMachine.transition({ type: 'FAIL_STREAM', error: err.message || 'Stream connection failed' });
+        this.emitSDKEvent('envoy-error', { type: 'connection', message: err.message || 'SSE connection failed' });
+        
         const errorType = this.mapErrorToType(err.message || '', false);
         this.errorToastController.show(errorType, () => {
           this.sendMessage(userPrompt, true);
         });
       }
     } else {
+      // Synchronous post fallback
       try {
         const response = await fetch(`${this.apiBase}/api/v1/chat`, {
           method: 'POST',
@@ -750,24 +865,21 @@ export class EnvoyChatbot extends HTMLElement {
         };
 
         this.messages.push(botMsg);
-        this.appendMessageDOM(botMsg);
-        if (this.autoScrollController) {
-          this.autoScrollController.forceScroll();
-        }
+        this.messageListComponent.appendMessage(botMsg, this.branding.colors.primaryColor || '#2563eb', this.handleMessageAction.bind(this));
+        
+        this.autoScrollController.forceScroll();
         this.conversationStateMachine.transition({ type: 'COMPLETE_STREAM' });
 
         if (this.branding.featureFlags.conversationHistory) {
-          this.saveHistory();
+          this.storage.saveConversation(this.botId, this.messages, this.getOrCreateConversationId());
         }
 
-        this.dispatchEvent(new CustomEvent('envoy-message-received', {
-          detail: { text: botMsg.text },
-          bubbles: true,
-          composed: true
-        }));
+        this.emitSDKEvent('envoy-message-received', botMsg.text);
       } catch (err: any) {
         console.error('[envoy-chatbot] Synchronous chat error:', err);
-        this.conversationStateMachine.transition({ type: 'FAIL_STREAM', error: err.message || 'Connection failed' });
+        this.conversationStateMachine.transition({ type: 'FAIL_STREAM', error: err.message || 'Fetch failed' });
+        this.emitSDKEvent('envoy-error', { type: 'fetch', message: err.message || 'Fetch failed' });
+        
         const errorType = this.mapErrorToType(err.message || '', false);
         this.errorToastController.show(errorType, () => {
           this.sendMessage(userPrompt, true);
@@ -776,117 +888,37 @@ export class EnvoyChatbot extends HTMLElement {
     }
   }
 
-  public async runSimulatedResponse(userPrompt: string) {
-    if (this.branding.featureFlags.typingAnimation) {
-      await new Promise(resolve => setTimeout(resolve, 800));
+  private mapErrorToType(errorMsg: string, streamSucceeded: boolean): ErrorType {
+    if (streamSucceeded) {
+      return 'interrupted';
     }
-
-    const botMsg: Message = {
-      id: `bot-${Date.now()}`,
-      sender: 'bot',
-      text: '',
-      timestamp: new Date().toISOString(),
-      isStreaming: true
-    };
-
-    const reply = this.getSimulatedReply(userPrompt);
-
-    if (this.branding.featureFlags.streamingResponses) {
-      this.conversationStateMachine.transition({ type: 'RECEIVE_TOKEN' });
-      this.messages.push(botMsg);
-      this.appendMessageDOM(botMsg);
-      const bubble = this.shadowRoot!.getElementById(`msg-${botMsg.id}`) as HTMLDivElement;
-
-      let wordIndex = 0;
-      this.currentStreamInterval = window.setInterval(() => {
-        if (wordIndex < reply.length) {
-          botMsg.text += reply[wordIndex];
-          if (bubble) {
-            bubble.innerHTML = MarkdownRenderer.render(botMsg.text);
-          }
-          wordIndex++;
-          if (this.autoScrollController) {
-            this.autoScrollController.scroll();
-          }
-        } else {
-          if (this.currentStreamInterval) {
-            clearInterval(this.currentStreamInterval);
-            this.currentStreamInterval = null;
-          }
-          botMsg.isStreaming = false;
-          if (bubble) {
-            bubble.classList.remove('envoy-streaming');
-          }
-          this.conversationStateMachine.transition({ type: 'COMPLETE_STREAM' });
-
-          if (this.branding.featureFlags.conversationHistory) {
-            this.saveHistory();
-          }
-
-          this.dispatchEvent(new CustomEvent('envoy-message-received', {
-            detail: { text: botMsg.text },
-            bubbles: true,
-            composed: true
-          }));
-        }
-      }, 25);
-    } else {
-      botMsg.text = reply;
-      botMsg.isStreaming = false;
-      this.messages.push(botMsg);
-      this.appendMessageDOM(botMsg);
-      if (this.autoScrollController) {
-        this.autoScrollController.forceScroll();
-      }
-      this.conversationStateMachine.transition({ type: 'COMPLETE_STREAM' });
-
-      if (this.branding.featureFlags.conversationHistory) {
-        this.saveHistory();
-      }
-
-      this.dispatchEvent(new CustomEvent('envoy-message-received', {
-        detail: { text: botMsg.text },
-        bubbles: true,
-        composed: true
-      }));
+    const msg = errorMsg.toLowerCase();
+    if (msg.includes('timeout') || msg.includes('time out')) {
+      return 'timeout';
     }
-  }
-
-  public getSimulatedReply(prompt: string): string {
-
-    const q = prompt.toLowerCase();
-    if (q.includes('hello') || q.includes('hi')) {
-      return `Hello there! I am your Envoy AI agent. How can I help you configure or manage your chatbot workspace today?`;
+    if (msg.includes('401') || msg.includes('403') || msg.includes('auth') || msg.includes('unauthorized')) {
+      return 'auth';
     }
-    if (q.includes('sync') || q.includes('synchronize')) {
-      return `To synchronize the chatbot brain manually, navigate to the "Knowledge Metrics" workspace tab in your dashboard, click "Synchronize Brain" and verify the list of pending documents in the confirmation dialog.`;
+    if (msg.includes('502') || msg.includes('503') || msg.includes('504') || msg.includes('unavailable')) {
+      return 'unavailable';
     }
-    if (q.includes('branding') || q.includes('color')) {
-      return `You can customize theme layouts, launcher text, welcome prompts, and colors directly inside the "Branding" config panel. These values are automatically loaded at runtime inside this chatbot widget.`;
+    if (msg.includes('network') || msg.includes('fetch') || msg.includes('failed to fetch') || msg.includes('typeerror')) {
+      return 'network';
     }
-    return `That's an interesting question about "${prompt}". Envoy AI is currently fully configured to parse context from documents stored in Qdrant collections. Let me know if you would like assistance indexing files!`;
+    return 'unexpected';
   }
 
   private getOrCreateConversationId(): string {
     if (!this.conversationId) {
-      const historyKey = `envoy-chat-conv-id-${this.botId}`;
-      if (this.branding.featureFlags.conversationHistory) {
-        const stored = localStorage.getItem(historyKey);
-        if (stored) {
-          this.conversationId = stored;
-          return this.conversationId;
-        }
-      }
-      this.conversationId = `conv_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
-      if (this.branding.featureFlags.conversationHistory) {
-        localStorage.setItem(historyKey, this.conversationId);
+      const data = this.storage.loadConversation(this.botId);
+      if (data && data.conversationId) {
+        this.conversationId = data.conversationId;
+      } else {
+        this.conversationId = `conv_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+        this.storage.saveConversation(this.botId, this.messages, this.conversationId);
       }
     }
     return this.conversationId;
-  }
-
-  private scrollToBottom() {
-    this.messagesContainerEl.scrollTop = this.messagesContainerEl.scrollHeight;
   }
 
   private cleanup() {
