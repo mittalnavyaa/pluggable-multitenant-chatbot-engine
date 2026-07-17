@@ -38,6 +38,10 @@ CREATE TABLE bots (
 
     description TEXT,
 
+    ui_theme_config JSONB,
+
+    prompt_config JSONB,
+
     status VARCHAR(20) DEFAULT 'ACTIVE',
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

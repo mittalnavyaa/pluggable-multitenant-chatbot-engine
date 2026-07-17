@@ -82,6 +82,20 @@ def startup():
                 ) THEN
                     ALTER TABLE internal_products ADD COLUMN status VARCHAR(20) DEFAULT 'ACTIVE';
                 END IF;
+
+                -- 5. Add ui_theme_config column to bots if not exists
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns WHERE table_name = 'bots' AND column_name = 'ui_theme_config'
+                ) THEN
+                    ALTER TABLE bots ADD COLUMN ui_theme_config JSONB;
+                END IF;
+
+                -- 6. Add prompt_config column to bots if not exists
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns WHERE table_name = 'bots' AND column_name = 'prompt_config'
+                ) THEN
+                    ALTER TABLE bots ADD COLUMN prompt_config JSONB;
+                END IF;
             END $$;
         """))
         db.execute(text("UPDATE internal_products SET status = 'ACTIVE' WHERE status IS NULL;"))
