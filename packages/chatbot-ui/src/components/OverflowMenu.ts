@@ -17,9 +17,13 @@ export class OverflowMenu {
 
     // Close when clicking outside
     document.addEventListener('click', (e) => {
-      const target = e.target as HTMLElement;
-      if (this.isOpen && !this.element.contains(target) && !target.closest('#envoy-overflow-btn')) {
-        this.close();
+      if (this.isOpen) {
+        const path = e.composedPath();
+        const clickedInsideMenu = path.includes(this.element);
+        const clickedOnButton = path.some(el => (el as HTMLElement).id === 'envoy-overflow-btn');
+        if (!clickedInsideMenu && !clickedOnButton) {
+          this.close();
+        }
       }
     });
   }
