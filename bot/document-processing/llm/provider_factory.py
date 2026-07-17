@@ -16,8 +16,10 @@ class ProviderFactory:
     @staticmethod
     def create(settings: Settings | None = None) -> BaseLLMProvider:
         config = settings or Settings.from_env()
-        if config.provider == "mock" or not config.groq_api_key:
+        if config.provider == "mock":
             return MockLLMProvider(config)
         if config.provider == "groq":
+            if not config.groq_api_key:
+                raise LLMProviderError("GROQ_API_KEY is required for groq provider.")
             return GroqProvider(config)
         raise LLMProviderError(f"Unsupported LLM provider: {config.provider}")

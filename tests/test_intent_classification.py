@@ -189,3 +189,43 @@ def test_celery_task_integration(mock_session_local, mock_classify_session):
     assert task_res["status"] == "COMPLETED"
     assert task_res["intent"] == "Admissions"
     assert task_res["confidence"] == 0.92
+
+
+@patch("src.analytics.intent_classification.classifier.IntentClassificationConfig.PROVIDER", "mock")
+@patch.dict(os.environ, {"ENVIRONMENT": "development"})
+def test_explicit_mock_provider_in_development():
+    # In development/testing, mock provider is allowed if explicitly configured
+    db = MagicMock()
+    service = IntentClassifierService(db=db)
+    from llm.mock_provider import MockLLMProvider
+    assert isinstance(service.provider, MockLLMProvider)
+
+
+@patch("src.analytics.intent_classification.classifier.IntentClassificationConfig.PROVIDER", "mock")
+@patch.dict(os.environ, {"ENVIRONMENT": "production"})
+def test_mock_provider_disallowed_in_production():
+    # Mock provider should raise RuntimeError in production
+    db = MagicMock()
+    with pytest.raises(RuntimeError) as exc_info:
+        IntentClassifierService(db=db)
+    assert "MockLLMProvider is not allowed" in str(exc_info.value)
+
+
+@patch("src.analytics.intent_classification.classifier.IntentClassificationConfig.PROVIDER", "groq")
+@patch.dict(os.environ, {"ENVIRONMENT": "production"})
+def test_unsupported_or_failed_provider_fails_fast():
+    # Failing provider should fail fast and raise error instead of falling back to MockLLMProvider
+    from config.settings import Settings
+    mock_settings = Settings(
+        provider="groq",
+        groq_api_key="",
+        model="llama-3.3-70b-versatile",
+        timeout=60.0,
+        temperature=0.0,
+        max_chunk_chars=12000
+    )
+    with patch("config.settings.Settings.from_env", return_value=mock_settings):
+        db = MagicMock()
+        with pytest.raises(RuntimeError) as exc_info:
+            IntentClassifierService(db=db)
+        assert "Intent classification pipeline initialization failed" in str(exc_info.value)

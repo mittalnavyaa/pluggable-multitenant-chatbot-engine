@@ -49,7 +49,8 @@ logger = logging.getLogger("intent_classifier_service")
 class IntentClassifierService:
     def __init__(self, db: Session) -> None:
         self.db = db
-        # Initialize the LLM provider using factory
+        is_production = os.getenv("ENVIRONMENT", "development").strip().lower() == "production"
+        
         try:
             # We override the settings model & temp with our intent configs if configured
             doc_settings = Settings.from_env()
@@ -62,19 +63,21 @@ class IntentClassifierService:
                 temperature=IntentClassificationConfig.TEMPERATURE,
                 max_chunk_chars=doc_settings.max_chunk_chars
             )
+            
+            # Enforce validation: MockLLMProvider is disallowed in production
+            if is_production and intent_settings.provider == "mock":
+                raise RuntimeError("MockLLMProvider is not allowed in a production environment.")
+                
             self.provider = ProviderFactory.create(intent_settings)
         except Exception as e:
-            logger.error(f"Failed to initialize LLM provider for intent classifier: {e}. Falling back to MockLLMProvider.")
-            # Fallback to mock settings
-            mock_settings = Settings(
-                provider="mock",
-                groq_api_key="",
-                model="mock-model",
-                timeout=10.0,
-                temperature=0.0,
-                max_chunk_chars=12000
-            )
-            self.provider = ProviderFactory.create(mock_settings)
+            if is_production:
+                logger.critical(
+                    f"CRITICAL ERROR: Failed to initialize production LLM provider for intent classification: {e}. "
+                    f"Stopping classification pipeline."
+                )
+            else:
+                logger.error(f"Failed to initialize LLM provider for intent classification: {e}.")
+            raise RuntimeError(f"Intent classification pipeline initialization failed: {e}") from e
 
     def normalize_conversation(
         self,
