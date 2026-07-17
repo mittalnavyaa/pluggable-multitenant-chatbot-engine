@@ -276,10 +276,10 @@ async def test_tenant_semantic_cache_hit_and_miss(mock_redis_class):
 # API Gateway End-to-End Tests with Database Setup
 # ---------------------------------------------------------------------------
 
-@patch("src.middleware.auth.SessionLocal")
 @patch("src.routers.query.SessionLocal")
+@patch("src.middleware.auth.SessionLocal")
 @patch("src.rag.routing_engine.qdrant_client")
-def test_api_gateway_tenant_isolation_boundary(mock_qdrant_client_instance, mock_query_session_local, mock_auth_session_local):
+def test_api_gateway_tenant_isolation_boundary(mock_qdrant_client_instance, mock_auth_session_local, mock_query_session_local):
     prod_admissions_id = "prod_admissions_test"
     prod_tensor_id = "prod_tensor_test"
     
@@ -327,6 +327,8 @@ def test_api_gateway_tenant_isolation_boundary(mock_qdrant_client_instance, mock
                 mock_bot.id = self.current_filter_val
                 mock_bot.status = "ACTIVE"
                 mock_bot.product_id = self.__class__.last_product[0].id if self.__class__.last_product[0] else uuid.uuid4()
+                mock_bot.ui_theme_config = {}
+                mock_bot.prompt_config = {}
                 return mock_bot
             
             prod = token_to_prod.get(self.current_filter_val)
@@ -339,7 +341,6 @@ def test_api_gateway_tenant_isolation_boundary(mock_qdrant_client_instance, mock
     mock_session.query.side_effect = MockQuery
     mock_auth_session_local.return_value = mock_session
     mock_query_session_local.return_value = mock_session
-    
     def mock_qdrant_search(*args, **kwargs):
         query_filter = kwargs.get("query_filter")
         platform_id = query_filter.must[0].match.value

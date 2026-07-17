@@ -309,49 +309,62 @@ async def retrieve_context(
         # so if platform_id is present, the tenant is registered and valid.
         tenant_active = True
 
-        # 5. Bot Active Validation Check (Optional for backward compatibility)
-        bot_active = True
-        bot_err_msg = ""
-        if bot_id:
-            bot_active = False
-            bot_err_msg = "Bot not found or inactive."
+        # 5. Bot Active Validation Check
+        if not bot_id:
+            gateway_latency = (time.time() - start_time) * 1000.0
             try:
-                bot_uuid = uuid.UUID(bot_id)
-                bot = db.query(Bot).filter(Bot.id == bot_uuid).first()
-                if bot:
-                    product_uuid = uuid.UUID(request.state.product_db_id)
-                    if bot.product_id != product_uuid:
-                        bot_err_msg = "Bot does not belong to the target tenant."
-                    elif bot.status != "ACTIVE":
-                        bot_err_msg = "Bot is currently disabled."
-                    else:
-                        bot_active = True
-                else:
-                    bot_err_msg = "Bot registration not found."
-            except ValueError:
-                bot_err_msg = "Invalid bot ID UUID format."
-            except Exception as e:
-                logger.error(f"Bot database verification failed: {e}")
-                bot_err_msg = f"Bot verification failed: {e}"
-                # Fail-open fallback if database connectivity fails
-                if "connection" in str(e).lower() or "password authentication" in str(e).lower():
-                    bot_active = True
+                metrics_svc.log_gateway_metrics(platform_id, "VALIDATION_FAILURE", "Missing required runtime identifier: bot_id.", gateway_latency)
+            except Exception:
+                pass
+            if concurrency_acquired:
+                limiter.release_concurrency(rate_limit_key, request_id)
+                concurrency_acquired = False
+            return build_error_response(
+                code="BAD_REQUEST",
+                message="Missing required runtime identifier: bot_id.",
+                status_code=400,
+                correlation_id=correlation_id
+            )
 
-            if not bot_active:
-                gateway_latency = (time.time() - start_time) * 1000.0
-                try:
-                    metrics_svc.log_gateway_metrics(platform_id, "VALIDATION_FAILURE", bot_err_msg, gateway_latency, bot_id=bot_id)
-                except Exception:
-                    pass
-                if concurrency_acquired:
-                    limiter.release_concurrency(rate_limit_key, request_id)
-                    concurrency_acquired = False
-                return build_error_response(
-                    code="FORBIDDEN",
-                    message=bot_err_msg,
-                    status_code=403,
-                    correlation_id=correlation_id
-                )
+        bot_active = False
+        bot_err_msg = "Bot not found or inactive."
+        try:
+            bot_uuid = uuid.UUID(bot_id)
+            bot = db.query(Bot).filter(Bot.id == bot_uuid).first()
+            if bot:
+                product_uuid = uuid.UUID(request.state.product_db_id)
+                if bot.product_id != product_uuid:
+                    bot_err_msg = "Bot does not belong to the target tenant."
+                elif bot.status != "ACTIVE":
+                    bot_err_msg = "Bot is currently disabled."
+                else:
+                    bot_active = True
+            else:
+                bot_err_msg = "Bot registration not found."
+        except ValueError:
+            bot_err_msg = "Invalid bot ID UUID format."
+        except Exception as e:
+            logger.error(f"Bot database verification failed: {e}")
+            bot_err_msg = f"Bot verification failed: {e}"
+            # Fail-open fallback if database connectivity fails
+            if "connection" in str(e).lower() or "password authentication" in str(e).lower():
+                bot_active = True
+
+        if not bot_active:
+            gateway_latency = (time.time() - start_time) * 1000.0
+            try:
+                metrics_svc.log_gateway_metrics(platform_id, "VALIDATION_FAILURE", bot_err_msg, gateway_latency, bot_id=bot_id)
+            except Exception:
+                pass
+            if concurrency_acquired:
+                limiter.release_concurrency(rate_limit_key, request_id)
+                concurrency_acquired = False
+            return build_error_response(
+                code="FORBIDDEN",
+                message=bot_err_msg,
+                status_code=403,
+                correlation_id=correlation_id
+            )
 
         # 6. Request Payload & Query Length Validation Check
         if not payload.query or not payload.query.strip():
