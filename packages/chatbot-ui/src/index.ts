@@ -23,6 +23,7 @@ export class EnvoyChatbot extends HTMLElement {
   private apiBase: string = '';
   private currentStreamInterval: number | null = null;
   private activeSseClient: SSEClient | null = null;
+  private conversationId: string = '';
 
   // Interactive Response UI State Management properties
   private conversationStateMachine = new UIStateMachine();
@@ -152,7 +153,9 @@ export class EnvoyChatbot extends HTMLElement {
     
     if (this.branding.featureFlags.conversationHistory) {
       localStorage.removeItem(`envoy-chat-history-${this.botId}`);
+      localStorage.removeItem(`envoy-chat-conv-id-${this.botId}`);
     }
+    this.conversationId = '';
 
     if (this.activeSseClient) {
       this.activeSseClient.disconnect();
@@ -709,11 +712,71 @@ export class EnvoyChatbot extends HTMLElement {
         });
       }
     } else {
-      await this.runSimulatedResponse(userPrompt);
+      try {
+        const response = await fetch(`${this.apiBase}/api/v1/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            bot_id: this.botId,
+            prompt: userPrompt,
+            stream: false,
+            conversation_id: this.getOrCreateConversationId()
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const responseData = await response.json();
+        
+        let responseText = '';
+        if (responseData && responseData.success && responseData.message) {
+          responseText = responseData.message.text;
+        } else if (responseData && responseData.text) {
+          responseText = responseData.text;
+        } else {
+          responseText = JSON.stringify(responseData);
+        }
+
+        const botMsg: Message = {
+          id: `bot-${Date.now()}`,
+          sender: 'bot',
+          text: responseText,
+          timestamp: new Date().toISOString(),
+          isStreaming: false
+        };
+
+        this.messages.push(botMsg);
+        this.appendMessageDOM(botMsg);
+        if (this.autoScrollController) {
+          this.autoScrollController.forceScroll();
+        }
+        this.conversationStateMachine.transition({ type: 'COMPLETE_STREAM' });
+
+        if (this.branding.featureFlags.conversationHistory) {
+          this.saveHistory();
+        }
+
+        this.dispatchEvent(new CustomEvent('envoy-message-received', {
+          detail: { text: botMsg.text },
+          bubbles: true,
+          composed: true
+        }));
+      } catch (err: any) {
+        console.error('[envoy-chatbot] Synchronous chat error:', err);
+        this.conversationStateMachine.transition({ type: 'FAIL_STREAM', error: err.message || 'Connection failed' });
+        const errorType = this.mapErrorToType(err.message || '', false);
+        this.errorToastController.show(errorType, () => {
+          this.sendMessage(userPrompt, true);
+        });
+      }
     }
   }
 
-  private async runSimulatedResponse(userPrompt: string) {
+  public async runSimulatedResponse(userPrompt: string) {
     if (this.branding.featureFlags.typingAnimation) {
       await new Promise(resolve => setTimeout(resolve, 800));
     }
@@ -789,7 +852,7 @@ export class EnvoyChatbot extends HTMLElement {
     }
   }
 
-  private getSimulatedReply(prompt: string): string {
+  public getSimulatedReply(prompt: string): string {
 
     const q = prompt.toLowerCase();
     if (q.includes('hello') || q.includes('hi')) {
@@ -802,6 +865,24 @@ export class EnvoyChatbot extends HTMLElement {
       return `You can customize theme layouts, launcher text, welcome prompts, and colors directly inside the "Branding" config panel. These values are automatically loaded at runtime inside this chatbot widget.`;
     }
     return `That's an interesting question about "${prompt}". Envoy AI is currently fully configured to parse context from documents stored in Qdrant collections. Let me know if you would like assistance indexing files!`;
+  }
+
+  private getOrCreateConversationId(): string {
+    if (!this.conversationId) {
+      const historyKey = `envoy-chat-conv-id-${this.botId}`;
+      if (this.branding.featureFlags.conversationHistory) {
+        const stored = localStorage.getItem(historyKey);
+        if (stored) {
+          this.conversationId = stored;
+          return this.conversationId;
+        }
+      }
+      this.conversationId = `conv_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+      if (this.branding.featureFlags.conversationHistory) {
+        localStorage.setItem(historyKey, this.conversationId);
+      }
+    }
+    return this.conversationId;
   }
 
   private scrollToBottom() {
