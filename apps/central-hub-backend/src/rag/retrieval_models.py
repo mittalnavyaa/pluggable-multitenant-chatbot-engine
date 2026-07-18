@@ -59,3 +59,4 @@ class RuntimeResponse(BaseModel):
     retrieved_document_ids: Optional[List[str]] = Field(default=None, description="List of unique document IDs retrieved.")
     token_usage: Optional[int] = Field(default=None, description="Token estimate of compiled prompt.")
     fallback_triggered: Optional[bool] = Field(default=None, description="Flag indicating if fallback rules were applied.")
+    retrieval_skipped: Optional[bool] = Field(default=False, description="Flag indicating if retrieval was skipped (conversational path).")

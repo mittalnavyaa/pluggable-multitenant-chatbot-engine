@@ -814,6 +814,15 @@ async def chat_stream(
             }
         }
 
+        # Inject conversational routing path telemetry
+        if getattr(rag_response, "retrieval_skipped", False):
+            event_payload["intent"] = "conversational"
+            event_payload["metadata"]["intent"] = "conversational"
+            event_payload["metadata"]["retrieval_skipped"] = True
+            event_payload["metadata"]["embedding_generated"] = False
+            event_payload["metadata"]["vector_search"] = False
+            event_payload["metadata"]["fallback_used"] = False
+
         # 8. Delegate generation to ChatService in the services layer
         from src.services.chat_service import ChatService
         

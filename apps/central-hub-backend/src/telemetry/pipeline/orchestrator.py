@@ -59,12 +59,30 @@ class TelemetryOrchestrator:
 
         user_queries = [m.text for m in messages if m.role == "user"]
 
-        # Gather AI operations concurrently without blocking
-        intent_task = asyncio.to_thread(IntentDetector.detect, user_queries)
-        lead_task = asyncio.to_thread(LeadDetectionService.analyze_conversation, conv_context)
+        # Check if conversational path was skipped/used
+        is_conversational = False
+        if payload_obj.metadata:
+            is_conversational = (
+                payload_obj.metadata.get("intent") == "conversational" or 
+                payload_obj.metadata.get("retrieval_skipped") is True
+            )
 
-        intent_info, lead_result = await asyncio.gather(intent_task, lead_task)
-        tracker.log_step("AI Classification Completed")
+        if is_conversational:
+            class MockLeadResult:
+                intent = "conversational"
+                lead_score = 0.0
+                priority = "LOW"
+                is_lead = False
+            lead_result = MockLeadResult()
+            intent_info = {"confidence": 1.0}
+            tracker.log_step("AI Classification Skipped (Conversational Path)")
+        else:
+            # Gather AI operations concurrently without blocking
+            intent_task = asyncio.to_thread(IntentDetector.detect, user_queries)
+            lead_task = asyncio.to_thread(LeadDetectionService.analyze_conversation, conv_context)
+
+            intent_info, lead_result = await asyncio.gather(intent_task, lead_task)
+            tracker.log_step("AI Classification Completed")
 
         # 3. Merge outputs for database handoff
         metrics_svc = MetricsService(db)
@@ -81,9 +99,9 @@ class TelemetryOrchestrator:
             "metadata": payload_obj.metadata or {},
             
             # Enriched classifications
-            "intent": lead_result.intent,
-            "is_sales_lead": lead_result.is_lead,
-            "lead_status": "NEW" if lead_result.is_lead else None
+            "intent": "conversational" if is_conversational else lead_result.intent,
+            "is_sales_lead": False if is_conversational else lead_result.is_lead,
+            "lead_status": None if is_conversational else ("NEW" if lead_result.is_lead else None)
         }
 
         # Save to database via MetricsService

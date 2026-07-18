@@ -90,7 +90,120 @@ class ContextIsolationRoutingEngine:
         )
 
         try:
+            # --- Stage 0: Intent Classification (Lightweight) ---
+            from src.rag.intent_classifier import DefaultIntentClassifier
+            classifier = DefaultIntentClassifier()
+            intent = classifier.classify(query)
+            
+            if intent == "conversational":
+                # Conversational Path
+                from src.models.bot import Bot
+                profile = self.prompt_orchestrator.get_tenant_profile(clean_platform_id, db, bot_id)
+                
+                formatting_rules = self.prompt_orchestrator.config.formatting_rules
+                response_tone = self.prompt_orchestrator.config.response_tone
+                max_history_turns = self.prompt_orchestrator.config.max_history_turns
+                
+                if bot_id and db:
+                    try:
+                        import uuid
+                        bot_uuid = uuid.UUID(bot_id) if isinstance(bot_id, str) else bot_id
+                        bot = db.query(Bot).filter(Bot.id == bot_uuid).first()
+                        if bot and hasattr(bot, "prompt_config") and bot.prompt_config:
+                            bot_prompt_config = bot.prompt_config or {}
+                            if "formatting_rules" in bot_prompt_config:
+                                formatting_rules = bot_prompt_config["formatting_rules"]
+                            if "response_tone" in bot_prompt_config:
+                                response_tone = bot_prompt_config["response_tone"]
+                            if "max_history_turns" in bot_prompt_config:
+                                max_history_turns = int(bot_prompt_config["max_history_turns"])
+                    except Exception as e:
+                        logger.warning(f"Error fetching bot prompt_config overrides for bot {bot_id}: {e}")
+
+                # Compile conversational prompt (No context boundary or fallback rules)
+                system_prompt = (
+                    "==============================\n"
+                    "SYSTEM IDENTITY\n"
+                    "==============================\n"
+                    f"You are {profile.bot_name}, a helpful customer support assistant for {profile.company_name}.\n"
+                    "Your role is to assist the user with their queries, including handling simple conversational interactions like greetings, farewells, acknowledgements, and gratitude.\n"
+                    f"The tone of the response must be strictly {response_tone}.\n\n"
+                    "==============================\n"
+                    "TENANT PROFILE\n"
+                    "==============================\n"
+                    f"Company Name: {profile.company_name}\n"
+                    f"Product Name: {profile.product_name}\n"
+                    f"Bot Display Name: {profile.bot_name}\n"
+                    f"Preferred Communication Tone: {profile.brand_tone}\n"
+                )
+                
+                history_str = ""
+                if chat_history:
+                    max_messages = max_history_turns * 2
+                    sliced_history = chat_history[-max_messages:]
+                    history_lines = []
+                    for msg in sliced_history:
+                        role = str(msg.get("role", "user")).capitalize()
+                        content = str(msg.get("content", "")).strip()
+                        history_lines.append(f"{role}: {content}")
+                    history_str = "\n".join(history_lines)
+
+                history_block = (
+                    "==============================\n"
+                    "RECENT CHAT HISTORY\n"
+                    "==============================\n"
+                    f"{history_str.strip() if history_str else '[No previous conversation history]'}\n\n"
+                )
+
+                question_block = (
+                    "==============================\n"
+                    "USER QUESTION\n"
+                    "==============================\n"
+                    f"{query.strip()}\n"
+                )
+                
+                compiled_prompt = f"{system_prompt}\n{history_block}{question_block}"
+                token_estimate = self.prompt_orchestrator.estimate_tokens(compiled_prompt)
+                
+                # Build RuntimeResponse
+                response = RuntimeResponse(
+                    platform_id=clean_platform_id,
+                    retrieved_chunks=[],
+                    formatted_context="",
+                    statistics=RetrievalStatistics(
+                        query_latency_ms=0.0,
+                        chunks_count=0,
+                        score_distribution=[],
+                        auth_latency_ms=0.0,
+                        embedding_latency_ms=0.0,
+                        redis_latency_ms=0.0,
+                        qdrant_latency_ms=0.0,
+                        prompt_build_latency_ms=0.0,
+                        llm_first_token_latency_ms=0.0,
+                        cache_hit=False,
+                        streaming_duration_ms=0.0,
+                        total_response_latency_ms=0.0
+                    ),
+                    compiled_prompt=compiled_prompt,
+                    prompt_version=self.prompt_orchestrator.config.prompt_version,
+                    system_version=self.prompt_orchestrator.config.system_version,
+                    retrieval_version=self.config.retrieval_version,
+                    retrieval_latency_ms=0.0,
+                    embedding_latency_ms=0.0,
+                    llm_latency_ms=0.0,
+                    top_k=None,
+                    similarity_scores=[],
+                    best_similarity_score=0.0,
+                    retrieved_chunk_ids=[],
+                    retrieved_document_ids=[],
+                    token_usage=token_estimate,
+                    fallback_triggered=False
+                )
+                response.retrieval_skipped = True
+                return response
+
             # --- Sequential Stage: Validation First, then Embedding Generation ---
+
             auth_latency = 0.0
             embedding_latency = 0.0
             query_vector = None
