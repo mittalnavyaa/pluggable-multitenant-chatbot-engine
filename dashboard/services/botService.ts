@@ -5,6 +5,7 @@ export interface BotInfo {
   name: string;
   productId: string;
   description?: string;
+  branding?: any;
 }
 
 export async function fetchBots(): Promise<BotInfo[]> {
@@ -17,7 +18,8 @@ export async function fetchBots(): Promise<BotInfo[]> {
     id: b.id,
     name: b.name,
     productId: b.product_id,
-    description: b.description
+    description: b.description,
+    branding: b.ui_theme_config || {}
   }));
 }
 
@@ -41,6 +43,7 @@ export async function createBot(name: string, productId: string, description?: s
     id: b.id,
     name: b.name,
     productId: b.product_id,
-    description: b.description
+    description: b.description,
+    branding: b.ui_theme_config || {}
   };
 }

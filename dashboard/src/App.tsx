@@ -79,7 +79,7 @@ function BrandingRoute() {
   if (!data.selectedProduct) {
     return <div style={{ padding: '24px', color: 'var(--color-text)' }}>Please select a product to manage branding.</div>;
   }
-  return <Branding product={data.selectedProduct as any} onBrandingSaved={data.refreshProducts} />;
+  return <Branding products={data.products as any} product={data.selectedProduct as any} onBrandingSaved={data.refreshProducts} />;
 }
 
 function DashboardApp() {

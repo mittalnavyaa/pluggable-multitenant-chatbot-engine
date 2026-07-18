@@ -1,3 +1,1 @@
-# Cleaned Document
-
 This is unique document content for testing multi-tenant duplicate isolation.

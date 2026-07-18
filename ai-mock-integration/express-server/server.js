@@ -181,8 +181,24 @@ app.get('/health', (req, res) => {
 // This mock returns realistic branding data for known product IDs.
 // In production, this would query your database.
 //
-app.get('/api/v1/products/:productId', (req, res) => {
+app.get('/api/v1/products/:productId', async (req, res) => {
   const { productId } = req.params;
+
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
+  // Try to fetch live branding metadata from the core backend via the SDK
+  try {
+    const client = sdk.getClient();
+    const result = await client.getBranding(productId);
+    if (result && result.success && result.data) {
+      console.log(`[envoy-server] Successfully fetched live branding config for product "${productId}" from core backend.`);
+      return res.json(result.data);
+    }
+  } catch (err) {
+    console.warn(`[envoy-server] Could not fetch live branding for product "${productId}" from core backend: ${err.message}. Falling back to mock configuration.`);
+  }
 
   // Mock branding configurations for each known product.
   // These match the ui_theme_config shape that BrandingStore.loadBranding() expects.

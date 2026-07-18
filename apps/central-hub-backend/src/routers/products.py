@@ -9,6 +9,7 @@ import hashlib
 
 from src.database.database import SessionLocal
 from src.models.internal_product import InternalProduct
+from src.models.bot import Bot
 
 router = APIRouter(
     prefix="/api/v1/products",
@@ -70,6 +71,47 @@ def get_product(product_id: str, db: Session = Depends(get_db)):
         p = db.query(InternalProduct).filter(InternalProduct.product_id == product_id).first()
         
     if not p:
+        # Check if this is a bot UUID instead
+        try:
+            val = uuid.UUID(product_id)
+            bot = db.query(Bot).filter(Bot.id == val).first()
+            if bot:
+                prod = db.query(InternalProduct).filter(InternalProduct.id == bot.product_id).first()
+                if prod:
+                    bot_theme = bot.ui_theme_config or {}
+                    if isinstance(bot_theme, str):
+                        try:
+                            bot_theme = json.loads(bot_theme)
+                        except Exception:
+                            bot_theme = {}
+                            
+                    prod_theme = prod.ui_theme_config or {}
+                    if isinstance(prod_theme, str):
+                        try:
+                            prod_theme = json.loads(prod_theme)
+                        except Exception:
+                            prod_theme = {}
+                            
+                    merged_theme = {**prod_theme}
+                    for key, val_theme in bot_theme.items():
+                        if val_theme is not None:
+                            if isinstance(val_theme, dict) and key in merged_theme and isinstance(merged_theme[key], dict):
+                                merged_theme[key] = {**merged_theme[key], **val_theme}
+                            else:
+                                merged_theme[key] = val_theme
+                                
+                    return ProductResponseSchema(
+                        id=str(bot.id),
+                        product_id=prod.product_id,
+                        name=bot.bot_name,
+                        description=bot.description,
+                        ui_theme_config=merged_theme,
+                        created_at=bot.created_at.isoformat(),
+                        updated_at=bot.created_at.isoformat()
+                    )
+        except ValueError:
+            pass
+            
         raise HTTPException(status_code=404, detail="Product not found")
         
     theme = p.ui_theme_config
@@ -155,7 +197,7 @@ def update_product_branding(product_id: str, payload: BrandingUpdateSchema, db: 
     if not p:
         raise HTTPException(status_code=404, detail="Product not found")
         
-    current_config = p.ui_theme_config or {}
+    current_config = dict(p.ui_theme_config or {})
     if isinstance(current_config, str):
         try:
             current_config = json.loads(current_config)

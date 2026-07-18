@@ -135,11 +135,19 @@ export class EnvoyChatbot extends HTMLElement {
         this.applyThemeMode(this.getCurrentTheme() === 'auto' ? (this.themeMediaQuery.matches ? 'dark' : 'light') : (newValue as 'light' | 'dark'));
       }
     } else if (name === 'data-welcome-message') {
+      if (!this.config.branding) this.config.branding = {};
+      if (!this.config.branding.content) this.config.branding.content = {};
+      this.config.branding.content.welcomeMessage = newValue;
+      
       if (this.branding.content) {
         this.branding.content.welcomeMessage = newValue;
         this.resetConversation(false); // Reload welcome
       }
     } else if (name === 'data-primary-color') {
+      if (!this.config.branding) this.config.branding = {};
+      if (!this.config.branding.colors) this.config.branding.colors = {};
+      this.config.branding.colors.primaryColor = newValue;
+
       if (this.branding.colors) {
         this.branding.colors.primaryColor = newValue;
         this.applyThemeStyles();

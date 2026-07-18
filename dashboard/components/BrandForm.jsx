@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
-export function BrandForm({ product, onPreviewChange, onSaveSuccess }) {
-  const branding = product.branding || {};
+export function BrandForm({ product, bot, onPreviewChange, onSaveSuccess }) {
+  const branding = bot ? (bot.branding || {}) : (product.branding || {});
 
   const [colors, setColors] = useState(branding.colors || {});
   const [typography, setTypography] = useState(branding.typography || {});
@@ -16,9 +16,9 @@ export function BrandForm({ product, onPreviewChange, onSaveSuccess }) {
   const [status, setStatus] = useState({ type: '', message: '' });
   const [menuJsonText, setMenuJsonText] = useState(JSON.stringify(branding.overflowMenu || [], null, 2));
 
-  // Sync state when active product changes
+  // Sync state when active product or bot changes
   useEffect(() => {
-    const b = product.branding || {};
+    const b = bot ? (bot.branding || {}) : (product.branding || {});
     setColors(b.colors || {});
     setTypography(b.typography || {});
     setLayout(b.layout || {});
@@ -29,7 +29,7 @@ export function BrandForm({ product, onPreviewChange, onSaveSuccess }) {
     setTheme(b.theme || 'auto');
     setMenuJsonText(JSON.stringify(b.overflowMenu || [], null, 2));
     setStatus({ type: '', message: '' });
-  }, [product]);
+  }, [product, bot]);
 
   const propagatePreview = (updatedFields) => {
     const currentConfig = {
@@ -134,7 +134,12 @@ export function BrandForm({ product, onPreviewChange, onSaveSuccess }) {
     };
 
     try {
-      const response = await fetch(`/api/v1/products/${product.uuid || product.id}/branding`, {
+      const isBot = !!bot;
+      const url = isBot 
+        ? `/api/v1/bots/${bot.id}/branding` 
+        : `/api/v1/products/${product.uuid || product.id}/branding`;
+
+      const response = await fetch(url, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'

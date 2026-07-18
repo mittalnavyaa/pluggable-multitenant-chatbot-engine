@@ -69,6 +69,32 @@ def test_bots_and_documents_endpoints():
         assert len(matching_bots) == 1
         assert matching_bots[0]["name"] == bot_payload["name"]
         
+        # 3.5 Test bot fetching via GET /api/v1/bots/{bot_id}
+        response = client.get(f"/api/v1/bots/{bot_id}", headers=headers)
+        assert response.status_code == 200
+        assert response.json()["name"] == bot_payload["name"]
+
+        # Test bot branding update via PATCH /api/v1/bots/{bot_id}/branding
+        patch_payload = {
+            "colors": {"primaryColor": "#ff00bb"},
+            "theme": "dark"
+        }
+        response = client.patch(f"/api/v1/bots/{bot_id}/branding", json=patch_payload, headers=headers)
+        assert response.status_code == 200
+        assert response.json()["ui_theme_config"]["colors"]["primaryColor"] == "#ff00bb"
+        assert response.json()["ui_theme_config"]["theme"] == "dark"
+
+        # Test bot branding retrieval via GET /api/v1/bots/{bot_id}/branding
+        response = client.get(f"/api/v1/bots/{bot_id}/branding", headers=headers)
+        assert response.status_code == 200
+        assert response.json()["colors"]["primaryColor"] == "#ff00bb"
+
+        # Test fallback to bot UUID on product endpoint: GET /api/v1/products/{bot_uuid}
+        response = client.get(f"/api/v1/products/{bot_id}", headers=headers)
+        assert response.status_code == 200
+        assert response.json()["ui_theme_config"]["colors"]["primaryColor"] == "#ff00bb"
+        assert response.json()["id"] == bot_id
+        
         # 4. Insert mock documents directly into database for listing assertions
         doc_uuid = uuid.uuid4()
         doc_id = doc_uuid
