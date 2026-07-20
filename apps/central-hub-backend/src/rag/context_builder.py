@@ -1,10 +1,10 @@
 """Consolidates retrieved document chunks into formatted markdown structures."""
 
 from typing import List
-from langchain_core.documents import Document
+from src.rag.document import Document
 
 class ContextBuilder:
-    """Assembles retrieved LangChain documents into a single structured context block."""
+    """Assembles retrieved documents into a single structured context block."""
 
     @staticmethod
     def build_context(documents: List[Document]) -> str:

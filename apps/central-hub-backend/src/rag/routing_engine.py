@@ -248,7 +248,7 @@ class ContextIsolationRoutingEngine:
                     cached_response.statistics.cache_hit = True
                     return cached_response
 
-            # --- Stage 2, 3, & 4: LangChain Isolated Retriever Execution ---
+            # --- Stage 2, 3, & 4: Isolated Retriever Execution ---
             qdrant_start = time.time()
             retriever = IsolatedQdrantRetriever(
                 qdrant_client=self.qdrant_client,
@@ -266,7 +266,7 @@ class ContextIsolationRoutingEngine:
             )
 
             # Retrieve documents
-            documents = retriever.invoke(query)
+            documents = retriever.retrieve(query)
             qdrant_latency = (time.time() - qdrant_start) * 1000.0
 
             # --- Similarity ThresholdConfidence Gate ---

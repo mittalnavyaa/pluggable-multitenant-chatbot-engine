@@ -1,39 +1,72 @@
-"""Custom LangChain retriever implementing context-isolated Qdrant queries."""
+"""Custom retriever implementing context-isolated Qdrant queries."""
 
 import time
 import logging
+from abc import ABC, abstractmethod
 from typing import List, Any, Optional
-from langchain_core.retrievers import BaseRetriever
-from langchain_core.documents import Document
-from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from qdrant_client.http.exceptions import UnexpectedResponse
 from qdrant_client.models import SearchParams
 
+from src.rag.document import Document
 from src.rag.filters import build_tenant_filter
 from src.rag.exceptions import VectorDatabaseUnavailableError, RetrievalTimeoutError, InvalidMetadataError
 
 logger = logging.getLogger("rag_retriever")
 
+
+class BaseRetriever(ABC):
+    """
+    Abstract base interface for context-isolated RAG retrievers.
+    Replaces langchain_core.retrievers.BaseRetriever.
+    """
+
+    @abstractmethod
+    def retrieve(self, query: str) -> List[Document]:
+        """Runs vector search query and returns matching Document chunks."""
+        pass
+
+    def invoke(self, query: str) -> List[Document]:
+        """Backward-compatible invocation wrapper."""
+        return self.retrieve(query)
+
+    def get_relevant_documents(self, query: str) -> List[Document]:
+        """Backward-compatible retrieval wrapper."""
+        return self.retrieve(query)
+
+
 class IsolatedQdrantRetriever(BaseRetriever):
-    """LangChain BaseRetriever that restricts vector queries to a specific tenant."""
+    """Retriever that restricts vector queries to a specific tenant."""
 
-    qdrant_client: Any
-    collection_name: str
-    embedding_service: Any
-    platform_id: str
-    bot_id: Optional[str] = None
-    top_k: int
-    score_threshold: float
-    timeout: float
-    hnsw_ef: int = 48
-    indexed_only: bool = True
-    neighbor_expansion_enabled: bool = False
-    neighbor_expansion_count: int = 1
+    def __init__(
+        self,
+        qdrant_client: Any,
+        collection_name: str,
+        embedding_service: Any,
+        platform_id: str,
+        top_k: int,
+        score_threshold: float,
+        timeout: float,
+        bot_id: Optional[str] = None,
+        hnsw_ef: int = 48,
+        indexed_only: bool = True,
+        neighbor_expansion_enabled: bool = False,
+        neighbor_expansion_count: int = 1,
+    ) -> None:
+        self.qdrant_client = qdrant_client
+        self.collection_name = collection_name
+        self.embedding_service = embedding_service
+        self.platform_id = platform_id
+        self.bot_id = bot_id
+        self.top_k = top_k
+        self.score_threshold = score_threshold
+        self.timeout = timeout
+        self.hnsw_ef = hnsw_ef
+        self.indexed_only = indexed_only
+        self.neighbor_expansion_enabled = neighbor_expansion_enabled
+        self.neighbor_expansion_count = neighbor_expansion_count
 
-    def _get_relevant_documents(
-        self, query: str, *, run_manager: CallbackManagerForRetrieverRun
-    ) -> List[Document]:
-        """Runs isolated vector search query on Qdrant and returns LangChain Documents."""
+    def retrieve(self, query: str) -> List[Document]:
+        """Runs isolated vector search query on Qdrant and returns Documents."""
         
         # 1. Generate query embedding
         try:
@@ -92,7 +125,7 @@ class IsolatedQdrantRetriever(BaseRetriever):
             logger.error(f"Failed to query Qdrant: {e}")
             raise VectorDatabaseUnavailableError(f"Qdrant search failed: {e}") from e
 
-        # 4. Map search results to LangChain documents
+        # 4. Map search results to documents
         docs = []
         for res in search_results:
             payload = res.payload or {}
@@ -282,3 +315,7 @@ class IsolatedQdrantRetriever(BaseRetriever):
                 docs = unique_docs
 
         return docs
+
+    def _get_relevant_documents(self, query: str, **kwargs: Any) -> List[Document]:
+        """Backward-compatible internal helper calling retrieve()."""
+        return self.retrieve(query)

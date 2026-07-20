@@ -15,7 +15,7 @@ if backend_path not in sys.path:
 if doc_proc_path not in sys.path:
     sys.path.insert(0, doc_proc_path)
 
-from langchain_core.documents import Document
+from src.rag.document import Document
 from src.rag.routing_engine import ContextIsolationRoutingEngine
 from src.rag.retrieval_config import RetrievalConfig
 from src.services.metrics_service import MetricsService
@@ -41,12 +41,13 @@ def mock_qdrant_client():
 async def test_similarity_confidence_gate(mock_retriever_class, mock_embedding_service):
     # Mock retriever to return chunks with scores below target relevance threshold
     mock_retriever = MagicMock()
-    mock_retriever.invoke.return_value = [
+    mock_retriever.retrieve.return_value = [
         Document(
             page_content="some content",
             metadata={"document_id": "doc1", "chunk_index": 5, "score": 0.4, "source_filename": "test.md"}
         )
     ]
+    mock_retriever.invoke.return_value = mock_retriever.retrieve.return_value
     mock_retriever_class.return_value = mock_retriever
 
     # Create config with relevance_threshold = 0.7
@@ -138,12 +139,13 @@ async def test_neighbor_chunk_expansion(mock_qdrant_client, mock_embedding_servi
 @patch("src.rag.routing_engine.IsolatedQdrantRetriever")
 async def test_observability_and_version_tracking(mock_retriever_class, mock_embedding_service):
     mock_retriever = MagicMock()
-    mock_retriever.invoke.return_value = [
+    mock_retriever.retrieve.return_value = [
         Document(
             page_content="grounding text",
             metadata={"document_id": "doc12", "chunk_index": 1, "score": 0.85, "source_filename": "test.md"}
         )
     ]
+    mock_retriever.invoke.return_value = mock_retriever.retrieve.return_value
     mock_retriever_class.return_value = mock_retriever
 
     config = RetrievalConfig(
